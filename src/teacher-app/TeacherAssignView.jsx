@@ -1,19 +1,21 @@
 import { useState } from "react";
 import StudentPickerModal from "../components/StudentPickerModal.jsx";
 import MaterialPickerModal from "../components/MaterialPickerModal.jsx";
+import TeacherCurriculumQueueModal from "./TeacherCurriculumQueueModal.jsx";
 import { C, ASSIGNMENT_TYPES, TIMING_OPTIONS, TIMING_LABELS, MATHFLAT_FOLLOWUP_OPTIONS, MATHFLAT_FOLLOWUP_LABELS } from "../lib/theme.js";
-import { inputStyle, selectStyle, btnAccent } from "../styles/common.js";
+import { inputStyle, selectStyle, btnAccent, btnGhostSm } from "../styles/common.js";
 import { todayStr } from "../lib/time.js";
 
-// "할 일 만들기" — 반 → 학생 → 유형(숙제/공부/시험/지시사항) → 타이밍(입실/클리닉중/퇴실)+순서 → 세부내용 순으로 입력.
+// "할 일 만들기" — 반 → 학생(여러 명 가능) → 유형(숙제/공부/시험/지시사항) → 타이밍(입실/클리닉중/퇴실) → 세부내용 순으로 입력.
 // "지시사항"은 교재/범위 없이 문장 하나로 된 지시(예: "입실하면 숙제 검사해주세요", "선생님 호출해주세요")를 낼 때 씁니다.
+// 같은 내용을 여러 학생에게 한 번에 내줘야 하는 경우가 많아서, 학생은 체크박스로 여러 명 고를 수 있어요.
 export default function TeacherAssignView({ data, updateData, myCourses, currentTeacherId }) {
   const [courseId, setCourseId] = useState(myCourses[0]?.id || "");
-  const [studentId, setStudentId] = useState("");
+  const [studentIds, setStudentIds] = useState([]);
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const [type, setType] = useState("숙제");
   const [timing, setTiming] = useState("클리닉중");
-  const [priority, setPriority] = useState("");
   const [material, setMaterial] = useState("");
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
   const [instructionText, setInstructionText] = useState("");
@@ -23,52 +25,78 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
   const [isMathflat, setIsMathflat] = useState(false);
   const [mathflatFollowUp, setMathflatFollowUp] = useState("none");
   const [mathflatNote, setMathflatNote] = useState("");
+  const [examDate, setExamDate] = useState("");
+  const [examStartTime, setExamStartTime] = useState("");
+  const [examDurationMinutes, setExamDurationMinutes] = useState("");
+  const [totalQuestions, setTotalQuestions] = useState("");
   const [justSent, setJustSent] = useState(false);
 
   const isInstruction = type === "지시사항";
+  const isExam = type === "시험";
   const canBeMathflat = type === "숙제" || type === "시험";
 
   const myStudents = [...new Set(data.enrollments.filter((e) => e.courseId === courseId).map((e) => e.studentId))]
     .map((id) => data.students.find((s) => s.id === id))
     .filter((s) => s && !s.withdrawn);
 
-  const student = data.students.find((s) => s.id === studentId);
+  const selectedStudents = studentIds.map((id) => data.students.find((s) => s.id === id)).filter(Boolean);
+
+  function removeStudent(id) {
+    setStudentIds((prev) => prev.filter((x) => x !== id));
+  }
 
   function submit() {
-    if (!studentId) return;
+    if (studentIds.length === 0) return;
     if (isInstruction && !instructionText.trim()) return;
     if (!isInstruction && !material.trim() && !rangeFrom.trim() && !rangeTo.trim()) return;
     updateData((next) => {
-      next.studentAssignments.push({
-        id: "asg_" + Date.now() + Math.random().toString(36).slice(2, 6),
-        studentId,
-        courseId,
-        type,
-        material: isInstruction ? instructionText.trim() : material.trim(),
-        rangeFrom: isInstruction ? "" : rangeFrom.trim(),
-        rangeTo: isInstruction ? "" : rangeTo.trim(),
-        createdAt: todayStr(),
-        status: "todo",
-        timing,
-        priority: priority === "" ? undefined : Number(priority),
-        ...(!isInstruction && type === "숙제" ? { dueDate: dueDate || undefined } : {}),
-        ...(canBeMathflat && isMathflat
-          ? { isMathflat: true, mathflatFollowUp, mathflatNote: mathflatNote.trim() || undefined }
-          : {}),
+      studentIds.forEach((studentId, i) => {
+        // 순서를 직접 입력받지 않고, 그 학생의 같은 타이밍 그룹 맨 뒤에 자동으로 붙입니다.
+        // 세세한 순서 조정은 학생 커리큘럼 화면에서 드래그로 하면 돼요.
+        const samePriority = next.studentAssignments.filter((a) => a.studentId === studentId && a.timing === timing).map((a) => a.priority ?? 0);
+        const nextPriority = samePriority.length ? Math.max(...samePriority) + 1 : 1;
+        next.studentAssignments.push({
+          id: "asg_" + Date.now() + "_" + i + "_" + Math.random().toString(36).slice(2, 6),
+          studentId,
+          courseId,
+          type,
+          material: isInstruction ? instructionText.trim() : material.trim(),
+          rangeFrom: isInstruction ? "" : rangeFrom.trim(),
+          rangeTo: isInstruction ? "" : rangeTo.trim(),
+          createdAt: todayStr(),
+          status: "todo",
+          timing,
+          priority: nextPriority,
+          ...(!isInstruction && type === "숙제" ? { dueDate: dueDate || undefined } : {}),
+          ...(isExam
+            ? {
+                examDate: examDate || undefined,
+                examStartTime: examStartTime || undefined,
+                examDurationMinutes: examDurationMinutes === "" ? undefined : Number(examDurationMinutes),
+                totalQuestions: totalQuestions === "" ? undefined : Number(totalQuestions),
+              }
+            : {}),
+          ...(canBeMathflat && isMathflat
+            ? { isMathflat: true, mathflatFollowUp, mathflatNote: mathflatNote.trim() || undefined }
+            : {}),
+        });
       });
     });
     setJustSent(true);
     setTimeout(() => setJustSent(false), 2200);
-    setStudentId("");
+    setStudentIds([]);
     setMaterial("");
     setInstructionText("");
     setRangeFrom("");
     setRangeTo("");
     setDueDate("");
-    setPriority("");
     setIsMathflat(false);
     setMathflatFollowUp("none");
     setMathflatNote("");
+    setExamDate("");
+    setExamStartTime("");
+    setExamDurationMinutes("");
+    setTotalQuestions("");
   }
 
   return (
@@ -80,7 +108,7 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
           value={courseId}
           onChange={(e) => {
             setCourseId(e.target.value);
-            setStudentId("");
+            setStudentIds([]);
           }}
           style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}
         >
@@ -92,10 +120,30 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         </select>
       </Field>
 
-      <Field label="학생">
+      <Field label="학생 (여러 명 선택 가능)">
         <button onClick={() => setStudentPickerOpen(true)} style={pickBtnStyle}>
-          {student ? student.name : "학생 선택"}
+          {selectedStudents.length > 0 ? `${selectedStudents.length}명 선택됨 · 눌러서 더 고르기` : "학생 선택"}
         </button>
+        {selectedStudents.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            {selectedStudents.map((s) => (
+              <span
+                key={s.id}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.accentSoft, color: C.accentText, borderRadius: 999, padding: "4px 10px", fontSize: 12 }}
+              >
+                {s.name}
+                <button onClick={() => removeStudent(s.id)} style={{ border: "none", background: "transparent", color: C.accentText, cursor: "pointer", fontSize: 11 }}>
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {selectedStudents.length === 1 && (
+          <button onClick={() => setQueueOpen(true)} style={{ ...btnGhostSm, marginTop: 8 }}>
+            이 학생 커리큘럼 순서 조정
+          </button>
+        )}
       </Field>
 
       <Field label="유형">
@@ -108,26 +156,17 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         </select>
       </Field>
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <Field label="언제 확인할 항목인가요">
-            <select value={timing} onChange={(e) => setTiming(e.target.value)} style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}>
-              {TIMING_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {TIMING_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <div style={{ width: 90 }}>
-          <Field label="순서">
-            <input type="number" min="1" value={priority} onChange={(e) => setPriority(e.target.value)} placeholder="예: 1" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-          </Field>
-        </div>
-      </div>
+      <Field label="언제 확인할 항목인가요">
+        <select value={timing} onChange={(e) => setTiming(e.target.value)} style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}>
+          {TIMING_OPTIONS.map((t) => (
+            <option key={t} value={t}>
+              {TIMING_LABELS[t]}
+            </option>
+          ))}
+        </select>
+      </Field>
       <div style={{ fontSize: 10.5, color: C.sub, marginTop: -8, marginBottom: 14 }}>
-        같은 "{TIMING_LABELS[timing]}" 항목끼리 순서 숫자가 작을수록 먼저 표시돼요. "퇴실 시" 항목은 클리닉 학습을 다 못 끝냈어도 체크리스트에 항상 따로 표시돼서 놓치지 않아요.
+        새 항목은 일단 "{TIMING_LABELS[timing]}" 목록의 맨 뒤에 추가돼요. 순서를 바꾸고 싶으면 학생 커리큘럼 화면에서 드래그로 조정할 수 있어요. "퇴실 시" 항목은 클리닉 학습을 다 못 끝냈어도 체크리스트에 항상 따로 표시돼서 놓치지 않아요.
       </div>
 
       {isInstruction ? (
@@ -160,6 +199,49 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
             <Field label="마감일 (선택)">
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
             </Field>
+          )}
+
+          {isExam && (
+            <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}55`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: C.gold, marginBottom: 8 }}>시험 세부정보</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 4 }}>시험 날짜</div>
+                  <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ width: 100 }}>
+                  <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 4 }}>시작 시간</div>
+                  <input type="time" value={examStartTime} onChange={(e) => setExamStartTime(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 4 }}>소요 시간(분)</div>
+                  <input
+                    type="number"
+                    min="1"
+                    value={examDurationMinutes}
+                    onChange={(e) => setExamDurationMinutes(e.target.value)}
+                    placeholder="예: 40"
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 4 }}>총 문항수</div>
+                  <input
+                    type="number"
+                    min="1"
+                    value={totalQuestions}
+                    onChange={(e) => setTotalQuestions(e.target.value)}
+                    placeholder="예: 20"
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 10, color: C.sub, marginTop: 6 }}>
+                여기 적은 날짜/시간은 계획 참고용이에요. 실제 시험은 관리자가 클리닉실에서 "시험 시작"으로 진행해요.
+              </div>
+            </div>
           )}
 
           {canBeMathflat && (
@@ -198,8 +280,12 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         </>
       )}
 
-      <button onClick={submit} disabled={!studentId} style={{ ...btnAccent, width: "100%", padding: "13px 0", fontSize: 14, marginTop: 8, opacity: studentId ? 1 : 0.5 }}>
-        추가하기
+      <button
+        onClick={submit}
+        disabled={studentIds.length === 0}
+        style={{ ...btnAccent, width: "100%", padding: "13px 0", fontSize: 14, marginTop: 8, opacity: studentIds.length > 0 ? 1 : 0.5 }}
+      >
+        {studentIds.length > 1 ? `${studentIds.length}명에게 추가하기` : "추가하기"}
       </button>
       {justSent && <div style={{ marginTop: 10, textAlign: "center", fontSize: 12.5, color: C.accentText, fontWeight: 700 }}>✓ 추가했어요</div>}
 
@@ -207,11 +293,13 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         <StudentPickerModal
           data={data}
           mode="flat"
+          multi
           students={myStudents}
           fixedCourseId={courseId}
+          initialSelected={studentIds}
           title="학생 선택"
-          onPick={(sid) => {
-            setStudentId(sid);
+          onPick={(ids) => {
+            setStudentIds(ids);
             setStudentPickerOpen(false);
           }}
           onClose={() => setStudentPickerOpen(false)}
@@ -224,6 +312,15 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
           currentTeacherId={currentTeacherId}
           onPick={(name) => setMaterial(name)}
           onClose={() => setMaterialPickerOpen(false)}
+        />
+      )}
+      {queueOpen && selectedStudents[0] && (
+        <TeacherCurriculumQueueModal
+          data={data}
+          updateData={updateData}
+          student={selectedStudents[0]}
+          myCourseIds={new Set(myCourses.map((c) => c.id))}
+          onClose={() => setQueueOpen(false)}
         />
       )}
     </div>

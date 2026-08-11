@@ -1,5 +1,6 @@
 import { useState, Fragment } from "react";
 import AssignmentPanel from "./AssignmentPanel.jsx";
+import StudentCurriculumModal from "./StudentCurriculumModal.jsx";
 import WithdrawnStudentsModal from "./WithdrawnStudentsModal.jsx";
 import SectionHeader from "./ui/SectionHeader.jsx";
 import { C } from "../lib/theme.js";
@@ -27,6 +28,7 @@ export default function StudentView({ data, updateData }) {
   const [newStudentSchool, setNewStudentSchool] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [withdrawnModalOpen, setWithdrawnModalOpen] = useState(false);
+  const [curriculumStudent, setCurriculumStudent] = useState(null);
   const [search, setSearch] = useState("");
   const [searchField, setSearchField] = useState("all");
   const [sortBy, setSortBy] = useState("name");
@@ -155,6 +157,7 @@ export default function StudentView({ data, updateData }) {
               <th style={thStyle}>소속 수업</th>
               <th style={thStyle}></th>
               <th style={thStyle}></th>
+              <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
@@ -202,6 +205,11 @@ export default function StudentView({ data, updateData }) {
                     </td>
                     <td style={{ ...tdStyle, color: C.sub, fontSize: 12 }}>{cs.length ? cs.map((c) => c.name).join(", ") : "-"}</td>
                     <td style={tdStyle}>
+                      <button onClick={() => setCurriculumStudent(s)} style={btnGhostSm}>
+                        커리큘럼
+                      </button>
+                    </td>
+                    <td style={tdStyle}>
                       <button onClick={() => setExpandedId(open ? null : s.id)} style={btnGhostSm}>
                         {open ? "계획 닫기" : `계획 관리${pendingCount ? ` (${pendingCount})` : ""}`}
                       </button>
@@ -214,7 +222,7 @@ export default function StudentView({ data, updateData }) {
                   </tr>
                   {open && (
                     <tr>
-                      <td colSpan={6} style={{ padding: "0 12px 12px" }}>
+                      <td colSpan={7} style={{ padding: "0 12px 12px" }}>
                         <AssignmentPanel data={data} student={s} updateData={updateData} />
                       </td>
                     </tr>
@@ -224,7 +232,7 @@ export default function StudentView({ data, updateData }) {
             })}
             {visibleStudents.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: C.sub }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: C.sub }}>
                   {activeStudents.length === 0 ? "등록된 학생이 없습니다." : "검색/필터 조건에 맞는 학생이 없습니다."}
                 </td>
               </tr>

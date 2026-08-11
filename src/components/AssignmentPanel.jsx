@@ -20,6 +20,9 @@ export default function AssignmentPanel({ data, student, updateData }) {
   const [rangeTo, setRangeTo] = useState("");
   const [courseId, setCourseId] = useState("");
   const [totalQuestions, setTotalQuestions] = useState("");
+  const [examDate, setExamDate] = useState("");
+  const [examStartTime, setExamStartTime] = useState("");
+  const [examDurationMinutes, setExamDurationMinutes] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [isMathflat, setIsMathflat] = useState(false);
   const [mathflatFollowUp, setMathflatFollowUp] = useState("none");
@@ -88,6 +91,7 @@ export default function AssignmentPanel({ data, student, updateData }) {
         createdAt: todayStr(),
         status: "todo",
         ...(type === "시험" && totalQuestions ? { totalQuestions: Number(totalQuestions) } : {}),
+        ...(type === "시험" ? { examDate: examDate || undefined, examStartTime: examStartTime || undefined, examDurationMinutes: examDurationMinutes ? Number(examDurationMinutes) : undefined } : {}),
         ...(type === "숙제" ? { dueDate: dueDate || undefined } : {}),
         ...(canBeMathflat && isMathflat ? { isMathflat: true, mathflatFollowUp, mathflatNote: mathflatNote.trim() || undefined } : {}),
       });
@@ -96,6 +100,9 @@ export default function AssignmentPanel({ data, student, updateData }) {
     setRangeFrom("");
     setRangeTo("");
     setTotalQuestions("");
+    setExamDate("");
+    setExamStartTime("");
+    setExamDurationMinutes("");
     setDueDate("");
     setIsMathflat(false);
     setMathflatFollowUp("none");
@@ -212,7 +219,20 @@ export default function AssignmentPanel({ data, student, updateData }) {
           ))}
         </select>
         {type === "시험" && (
-          <input value={totalQuestions} onChange={(e) => setTotalQuestions(e.target.value)} placeholder="총 문항수" type="number" min="1" style={{ ...inputStyle, width: 90 }} />
+          <>
+            <input value={totalQuestions} onChange={(e) => setTotalQuestions(e.target.value)} placeholder="총 문항수" type="number" min="1" style={{ ...inputStyle, width: 90 }} />
+            <input value={examDate} onChange={(e) => setExamDate(e.target.value)} type="date" title="시험 날짜" style={{ ...inputStyle, width: 130 }} />
+            <input value={examStartTime} onChange={(e) => setExamStartTime(e.target.value)} type="time" title="시작 시간" style={{ ...inputStyle, width: 90 }} />
+            <input
+              value={examDurationMinutes}
+              onChange={(e) => setExamDurationMinutes(e.target.value)}
+              placeholder="소요(분)"
+              type="number"
+              min="1"
+              title="소요 시간(분)"
+              style={{ ...inputStyle, width: 80 }}
+            />
+          </>
         )}
         {type === "숙제" && <input value={dueDate} onChange={(e) => setDueDate(e.target.value)} type="date" title="마감일" style={{ ...inputStyle, width: 130 }} />}
         <button onClick={addAssignment} style={btnAccent}>
@@ -288,7 +308,13 @@ export default function AssignmentPanel({ data, student, updateData }) {
                 </div>
                 <div style={{ fontSize: 11.5, color: C.sub, marginTop: 2 }}>
                   {formatRange(a.rangeFrom, a.rangeTo)} {a.type === "시험" && a.totalQuestions ? `· 총 ${a.totalQuestions}문항` : ""}
+                  {a.type === "시험" && a.examDurationMinutes ? ` · ${a.examDurationMinutes}분` : ""}
                 </div>
+                {a.type === "시험" && (a.examDate || a.examStartTime) && (
+                  <div style={{ fontSize: 10.5, color: C.gold, marginTop: 2, fontWeight: 700 }}>
+                    시험 예정: {a.examDate || "날짜 미정"} {a.examStartTime ? a.examStartTime : ""}
+                  </div>
+                )}
                 <div style={{ fontSize: 10.5, color: a.type === "숙제" && a.dueDate ? C.warn : C.sub, marginTop: 2, fontWeight: a.type === "숙제" && a.dueDate ? 700 : 400 }}>
                   입력일 {a.createdAt} {a.courseId && `· ${courseLabel(a.courseId)}`} {a.type === "숙제" && a.dueDate ? `· 마감 ${a.dueDate}` : ""}
                 </div>

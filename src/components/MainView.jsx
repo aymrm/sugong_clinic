@@ -5,6 +5,7 @@ import ExamSection from "./ExamSection.jsx";
 import TeacherNotesPanel from "./TeacherNotesPanel.jsx";
 import ExamScoreRow from "./ExamScoreRow.jsx";
 import Popover from "./Popover.jsx";
+import StudentCurriculumModal from "./StudentCurriculumModal.jsx";
 import SectionHeader from "./ui/SectionHeader.jsx";
 import StatusPill from "./ui/StatusPill.jsx";
 import CheckBadge from "./ui/CheckBadge.jsx";
@@ -29,6 +30,7 @@ export default function MainView({
   openChecklist,
 }) {
   const [openPopup, setOpenPopup] = useState(null); // {kind:'timeline'|'seat', id}
+  const [curriculumStudent, setCurriculumStudent] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addMarkerOpen, setAddMarkerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -228,6 +230,7 @@ export default function MainView({
         openChecklist={openChecklist}
         findSession={findSession}
         onRemoveToday={onRemoveToday}
+        onOpenCurriculum={setCurriculumStudent}
       />
     );
   }
@@ -620,17 +623,28 @@ export default function MainView({
                         const student = data.students.find((st) => st.id === p.studentId);
                         const course = data.courses.find((c) => c.id === p.courseId);
                         return (
-                          <button
-                            key={p.studentId + p.courseId}
-                            onClick={() => {
-                              onAssignSeat(p.studentId, p.courseId, seat.id);
-                              setOpenPopup(null);
-                            }}
-                            style={{ textAlign: "left", border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
-                          >
-                            <div style={{ fontSize: 12.5, fontWeight: 700 }}>{student?.name}</div>
-                            <div style={{ fontSize: 10.5, color: C.sub }}>{course?.name}</div>
-                          </button>
+                          <div key={p.studentId + p.courseId} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <button
+                              onClick={() => {
+                                onAssignSeat(p.studentId, p.courseId, seat.id);
+                                setOpenPopup(null);
+                              }}
+                              style={{ flex: 1, textAlign: "left", border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
+                            >
+                              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{student?.name}</div>
+                              <div style={{ fontSize: 10.5, color: C.sub }}>{course?.name}</div>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurriculumStudent(student);
+                              }}
+                              title="커리큘럼/지난 기록 보기"
+                              style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 7, padding: "6px 7px", fontSize: 10.5, color: C.sub, cursor: "pointer", flexShrink: 0 }}
+                            >
+                              커리큘럼
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -762,6 +776,10 @@ export default function MainView({
         {/* 우측: 선생님 공지(포스트잇) */}
         <TeacherNotesPanel data={data} updateData={updateData} />
       </div>
+
+      {curriculumStudent && (
+        <StudentCurriculumModal data={data} updateData={updateData} student={curriculumStudent} date={date} onClose={() => setCurriculumStudent(null)} />
+      )}
     </div>
   );
 }
@@ -800,7 +818,7 @@ function TimelineGroup({ title, events, defaultOpen, renderEvent, emptyText, acc
 }
 
 /* ── 도착 확인 / 종료·채점 일정 항목 — 클릭하면 바로 아래로 펼쳐짐(목록 안이라 스크롤로 자연스럽게 처리됨) ── */
-function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openChecklist, findSession, onRemoveToday }) {
+function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openChecklist, findSession, onRemoveToday, onOpenCurriculum }) {
   const isOpen = openPopup && openPopup.kind === "timeline" && openPopup.id === ev.id;
   const allSeated =
     ev.type === "arrival" &&
@@ -837,8 +855,14 @@ function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openCheckli
               const sess = findSession(p.studentId, ev.course.id);
               const hasCondition = ev.type === "checkout" && sess?.dismissalMode && sess.dismissalMode !== "time";
               return (
-                <div key={p.entryId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, width: 70 }}>{student?.name}</span>
+                <div key={p.entryId} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => onOpenCurriculum(student)}
+                    title="커리큘럼/지난 기록 보기"
+                    style={{ border: "none", background: "transparent", padding: 0, font: "inherit", fontSize: 12.5, fontWeight: 600, width: 70, textAlign: "left", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.line }}
+                  >
+                    {student?.name}
+                  </button>
                   <StatusPill status={sess?.status || "미배정"} />
                   {hasCondition && (
                     <span

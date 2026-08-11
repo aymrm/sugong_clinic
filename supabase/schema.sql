@@ -100,7 +100,20 @@ create table if not exists student_assignments (
   mathflat_follow_up text, -- 'none' | 'wrong_only' | 'twin' | 'other'
   mathflat_note text,
   mathflat_rounds jsonb, -- [{id, label, correctCount, totalQuestions}]
-  wrong_numbers jsonb -- 시험 유형에서 관리자가 여유 있을 때 입력하는 틀린 문제 번호 배열, 예: [3,7,12]
+  wrong_numbers jsonb, -- 시험 유형에서 관리자가 여유 있을 때 입력하는 틀린 문제 번호 배열, 예: [3,7,12]
+  -- 시험 계획 세부정보(언제 쳐야 하는지) — type='시험'일 때만 의미 있음.
+  exam_date date,
+  exam_start_time text,
+  exam_duration_minutes int,
+  -- scheduled_date: "오늘 진행할 항목"으로 지정된 날짜.
+  scheduled_date date,
+  -- is_backlog: true면 커리큘럼 템플릿에서 적용된 "아직 오늘로 지정 안 된" 대기 항목이라 scheduled_date가
+  -- 오늘과 일치할 때만 체크리스트에 보입니다. false/미설정이면(일반적으로 만든 계획들) 예전처럼
+  -- scheduled_date와 무관하게 세션이 있을 때 항상 보입니다(기존 동작 유지, 하위 호환).
+  is_backlog boolean not null default false,
+  -- 커리큘럼 템플릿에서 적용되어 생긴 항목이면 어떤 템플릿에서 왔는지 표시(이름은 템플릿이 나중에 지워져도 남아있도록 복사해둠).
+  curriculum_template_id text,
+  curriculum_template_name text
 );
 alter table student_assignments add column if not exists timing text default '클리닉중';
 alter table student_assignments add column if not exists priority int;
@@ -109,6 +122,23 @@ alter table student_assignments add column if not exists mathflat_follow_up text
 alter table student_assignments add column if not exists mathflat_note text;
 alter table student_assignments add column if not exists mathflat_rounds jsonb;
 alter table student_assignments add column if not exists wrong_numbers jsonb;
+alter table student_assignments add column if not exists exam_date date;
+alter table student_assignments add column if not exists exam_start_time text;
+alter table student_assignments add column if not exists exam_duration_minutes int;
+alter table student_assignments add column if not exists scheduled_date date;
+alter table student_assignments add column if not exists is_backlog boolean not null default false;
+alter table student_assignments add column if not exists curriculum_template_id text;
+alter table student_assignments add column if not exists curriculum_template_name text;
+
+-- 커리큘럼 템플릿: 여러 단계(숙제/공부/시험/지시사항)로 이루어진 재사용 가능한 커리큘럼을 미리 만들어두고
+-- 학생에게 적용하면, steps 각각이 그 학생의 studentAssignments로 복사되어 생성됩니다(적용 후에는 학생마다
+-- 자유롭게 추가/수정/삭제 가능 — 일반 studentAssignments와 동일하게 다뤄지기 때문).
+create table if not exists curriculum_templates (
+  id text primary key,
+  name text not null,
+  description text,
+  steps jsonb not null default '[]'
+);
 
 create table if not exists teacher_notes (
   id text primary key,
@@ -323,7 +353,7 @@ begin
   for t in
     select unnest(array[
       'students','courses','enrollments','course_curriculum',
-      'assignment_templates','student_assignments','material_library','teacher_notes',
+      'assignment_templates','student_assignments','material_library','teacher_notes','curriculum_templates',
       'exam_sessions','exam_session_participants','seats','room_markers',
       'schedule_entries','schedule_skips','sessions','app_settings'
     ])

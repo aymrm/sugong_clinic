@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AssignmentTemplates from "./AssignmentTemplates.jsx";
+import CurriculumTemplatesPanel from "./CurriculumTemplatesPanel.jsx";
 import StudentPickerModal from "./StudentPickerModal.jsx";
 import MaterialPickerModal from "./MaterialPickerModal.jsx";
 import AddScheduleSlotModal from "./AddScheduleSlotModal.jsx";
@@ -14,6 +15,9 @@ export default function TeacherView({ data, updateData, currentTeacherId }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <CollapsibleSection title="과제 내주기" desc="템플릿을 골라 살짝 수정해서 바로 내주거나, 처음부터 새로 만들 수 있어요.">
         <AssignmentTemplates data={data} updateData={updateData} />
+      </CollapsibleSection>
+      <CollapsibleSection title="커리큘럼 템플릿" desc="여러 단계로 구성된 커리큘럼을 미리 만들어두고 학생에게 통째로 적용할 수 있어요. 적용 후에는 학생마다 자유롭게 조정 가능합니다.">
+        <CurriculumTemplatesPanel data={data} updateData={updateData} />
       </CollapsibleSection>
       <CollapsibleSection title="선생님별 반 관리" desc="선생님 이름을 누르면 그 선생님이 담당하는 반들이 펼쳐집니다." defaultOpen>
         <TeacherCourseSection data={data} updateData={updateData} currentTeacherId={currentTeacherId} />

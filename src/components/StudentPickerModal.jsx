@@ -16,6 +16,8 @@ const UNASSIGNED_ID = "__unassigned__";
 // mode="flat": students 배열(이미 정해진 후보 목록, 예: 아직 이 반에 없는 학생)에서 고름.
 //   드릴다운 시에는 "다른 반 소속"을 기준으로 묶어서 보여주되(이름이 기억 안 날 때 찾기 쉽도록),
 //   실제로 선택되면 항상 onPick(studentId, fixedCourseId ?? null)로 반환됨.
+// multi=true (mode="flat"에서만 지원): 체크박스로 여러 명을 골라서 한 번에 onPick(studentIds 배열, fixedCourseId ?? null)로 반환.
+//   지시사항처럼 같은 내용을 여러 학생에게 한 번에 내줘야 할 때 씁니다.
 export default function StudentPickerModal({
   data,
   mode = "tree",
@@ -23,13 +25,29 @@ export default function StudentPickerModal({
   fixedCourseId,
   excludePairs = [],
   title = "학생 선택",
+  multi = false,
+  initialSelected = [],
   onPick,
   onClose,
 }) {
   const [search, setSearch] = useState("");
   const [activeCourseId, setActiveCourseId] = useState(null); // 드릴다운: 지금 펼쳐진 반 (또는 UNASSIGNED_ID)
   const [pendingStudentId, setPendingStudentId] = useState(null); // 미배정 학생을 골라서, 반을 정하는 중
+  const [selectedIds, setSelectedIds] = useState(() => new Set(initialSelected)); // multi 모드에서 체크된 학생들
   const q = search.trim().toLowerCase();
+
+  function toggleSelected(studentId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  }
+  function confirmMulti() {
+    if (selectedIds.size === 0) return;
+    onPick([...selectedIds], fixedCourseId ?? null);
+  }
 
   const excludeSet = new Set(excludePairs.map((p) => p.studentId + "|" + p.courseId));
   const allowedIds = mode === "flat" ? new Set((students || []).map((s) => s.id)) : null;
@@ -92,7 +110,36 @@ export default function StudentPickerModal({
   }
 
   return (
-    <Modal title={pendingStudentId ? "어느 반 일정으로 등록할까요?" : title} onClose={onClose} width={420}>
+    <Modal
+      title={pendingStudentId ? "어느 반 일정으로 등록할까요?" : multi ? `${title} (${selectedIds.size}명 선택)` : title}
+      onClose={onClose}
+      width={420}
+      footer={
+        multi && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button onClick={onClose} style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, cursor: "pointer" }}>
+              취소
+            </button>
+            <button
+              onClick={confirmMulti}
+              disabled={selectedIds.size === 0}
+              style={{
+                border: "none",
+                background: selectedIds.size === 0 ? C.line : C.accent,
+                color: "#fff",
+                borderRadius: 8,
+                padding: "9px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: selectedIds.size === 0 ? "default" : "pointer",
+              }}
+            >
+              {selectedIds.size}명 선택 완료
+            </button>
+          </div>
+        )
+      }
+    >
       {!pendingStudentId && (
         <input
           autoFocus
@@ -104,7 +151,39 @@ export default function StudentPickerModal({
       )}
 
       <div style={{ maxHeight: 400, overflowY: "auto" }}>
-        {pendingStudentId ? (
+        {multi ? (
+          // multi 모드: 체크박스로 여러 명 선택 (flat 후보 목록 기준, 검색어로 필터링)
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {(students || [])
+              .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.school || "").toLowerCase().includes(q))
+              .map((s) => {
+                const checked = selectedIds.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      border: `1px solid ${checked ? C.accent : C.line}`,
+                      background: checked ? C.accentSoft : "#fff",
+                      borderRadius: 8,
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input type="checkbox" checked={checked} onChange={() => toggleSelected(s.id)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{s.name}</span>
+                    <span style={{ fontSize: 11.5, color: C.sub }}>
+                      {s.grade}
+                      {s.school ? ` · ${s.school}` : ""}
+                    </span>
+                  </label>
+                );
+              })}
+            {(students || []).length === 0 && <div style={{ fontSize: 12.5, color: C.sub, padding: 8 }}>선택 가능한 학생이 없습니다.</div>}
+          </div>
+        ) : pendingStudentId ? (
           // 미배정 학생을 골랐을 때: 반 선택 단계
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.line}` }}>

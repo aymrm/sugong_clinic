@@ -59,13 +59,15 @@ function ChecklistBody({ data, sessionId, updateData }) {
   const course = data.courses.find((c) => c.id === session.courseId);
 
   // tasks가 비어있으면(null) 학생의 "앞으로 해야 할 것"(studentAssignments, todo 상태)에서 자동으로 불러옵니다.
-  // 이 화면은 학생 관리에서 미리 설정해둔 계획을 실제로 체크/기록하는 곳입니다.
+  // isBacklog가 true인 항목(커리큘럼 템플릿에서 적용된, 아직 "오늘 진행"으로 안 고른 대기 항목)은
+  // scheduledDate가 오늘과 일치할 때만 나타나고, 그 외(일반적으로 만든 계획들, 예전 데이터)는
+  // 예전처럼 세션이 있을 때 항상 나타납니다.
   useEffect(() => {
     if (session.tasks === null) {
       updateData((next) => {
         const sess = next.sessions.find((s) => s.id === sessionId);
         const items = next.studentAssignments.filter(
-          (a) => a.studentId === sess.studentId && a.status === "todo" && (!a.courseId || a.courseId === sess.courseId)
+          (a) => a.studentId === sess.studentId && a.status === "todo" && (!a.courseId || a.courseId === sess.courseId) && (!a.isBacklog || a.scheduledDate === sess.date)
         );
         sess.tasks = items.map((a, i) => ({
           id: "t_" + sessionId + "_" + i,

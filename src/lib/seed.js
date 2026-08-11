@@ -47,6 +47,21 @@ export function seedState() {
     { id: "tpl1", type: "공부", material: "쎈 수2 3단원", rangeFrom: "함수의 극한 연습문제", rangeTo: "" },
     { id: "tpl2", type: "시험", material: "단어시험", rangeFrom: "Day 12", rangeTo: "" },
   ];
+  // 커리큘럼 템플릿 — 여러 단계로 구성된 재사용 가능한 커리큘럼. "학생에게 적용"하면 각 step이 그 학생의
+  // studentAssignments로 복사되어 생성되고, 이후에는 학생마다 자유롭게 추가/수정/삭제할 수 있습니다.
+  const curriculumTemplates = [
+    {
+      id: "curr1",
+      name: "수2 3단원 심화 커리큘럼",
+      description: "개념 확인 → 연습문제 → 오답 정리 → 단원평가 순서",
+      steps: [
+        { id: "step1", order: 1, type: "공부", material: "쎈 수2 3단원", rangeFrom: "함수의 극한 개념", rangeTo: "", timing: "클리닉중" },
+        { id: "step2", order: 2, type: "숙제", material: "개념원리 수2 3단원", rangeFrom: "연습문제 1~20", rangeTo: "", timing: "클리닉중" },
+        { id: "step3", order: 3, type: "지시사항", material: "오답 정리 노트 확인해주세요", timing: "퇴실" },
+        { id: "step4", order: 4, type: "시험", material: "3단원 단원평가", rangeFrom: "", rangeTo: "", timing: "클리닉중", examDurationMinutes: 40, totalQuestions: 20 },
+      ],
+    },
+  ];
   // 반마다 정해둔 교재/숙제 목록 — "반 관리"에서 편집, "학생 관리"에서 골라서 학생에게 추가
   // 시험(type:'시험') 항목은 시험시간(분)/총 문항수를 미리 정해둘 수 있습니다.
   const courseCurriculum = [
@@ -109,6 +124,7 @@ export function seedState() {
     enrollments,
     studentAssignments,
     assignmentTemplates,
+    curriculumTemplates,
     courseCurriculum,
     materialLibrary,
     teacherNotes,

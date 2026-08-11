@@ -4,6 +4,7 @@ import StatusPill from "../components/ui/StatusPill.jsx";
 import AdjustTimeModal from "./AdjustTimeModal.jsx";
 import GroupNoteModal from "./GroupNoteModal.jsx";
 import StudentHistoryModal from "./StudentHistoryModal.jsx";
+import TeacherCurriculumQueueModal from "./TeacherCurriculumQueueModal.jsx";
 import { entriesForDate } from "../lib/util.js";
 import { C } from "../lib/theme.js";
 import { selectStyle, btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
@@ -18,6 +19,7 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
   const [selected, setSelected] = useState(() => new Set()); // "studentId|courseId"
   const [groupNoteOpen, setGroupNoteOpen] = useState(false);
   const [historyStudent, setHistoryStudent] = useState(null);
+  const [queueStudent, setQueueStudent] = useState(null);
 
   const myCourseIds = new Set(myCourses.map((c) => c.id));
   const entries = entriesForDate(data, date).filter((e) => myCourseIds.has(e.courseId));
@@ -198,35 +200,40 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
                       borderRadius: 10,
                       padding: "11px 13px",
                       display: "flex",
-                      alignItems: "center",
-                      gap: 10,
+                      flexDirection: "column",
+                      gap: 8,
                     }}
                   >
-                    {selectMode && <input type="checkbox" checked={isChecked} onChange={() => toggleSelect(e.studentId, e.courseId)} style={{ width: 17, height: 17, flexShrink: 0 }} />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-                        <button
-                          onClick={() => setHistoryStudent(student)}
-                          style={{ border: "none", background: "transparent", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.line }}
-                        >
-                          {student?.name}
-                        </button>
-                        {hasCondition && (
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 7px" }}>
-                            {e.dismissalMode === "condition" ? "조건부 귀가" : "조건 만족시 조기귀가"}
-                          </span>
-                        )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {selectMode && <input type="checkbox" checked={isChecked} onChange={() => toggleSelect(e.studentId, e.courseId)} style={{ width: 17, height: 17, flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                          <button
+                            onClick={() => setHistoryStudent(student)}
+                            style={{ border: "none", background: "transparent", padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.line }}
+                          >
+                            {student?.name}
+                          </button>
+                          {hasCondition && (
+                            <span style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 7px" }}>
+                              {e.dismissalMode === "condition" ? "조건부 귀가" : "조건 만족시 조기귀가"}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.sub }}>
+                          {e.start}~{e.end}
+                          {isLate ? " · 지각/시간조정됨" : ""}
+                          {sess?.seatSnapshot ? ` · #${sess.seatSnapshot.label}자리` : ""}
+                        </div>
+                        {hasCondition && e.dismissalCondition && <div style={{ fontSize: 10.5, color: C.gold, marginTop: 2 }}>조건: {e.dismissalCondition}</div>}
                       </div>
-                      <div style={{ fontSize: 11, color: C.sub }}>
-                        {e.start}~{e.end}
-                        {isLate ? " · 지각/시간조정됨" : ""}
-                        {sess?.seatSnapshot ? ` · #${sess.seatSnapshot.label}자리` : ""}
-                      </div>
-                      {hasCondition && e.dismissalCondition && <div style={{ fontSize: 10.5, color: C.gold, marginTop: 2 }}>조건: {e.dismissalCondition}</div>}
+                      <StatusPill status={sess?.status || "미배정"} />
                     </div>
-                    <StatusPill status={sess?.status || "미배정"} />
                     {!selectMode && (
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        <button onClick={() => setQueueStudent(student)} style={btnGhostSm}>
+                          커리큘럼 순서
+                        </button>
                         <button onClick={() => setAdjustEntry(e)} style={btnGhostSm}>
                           귀가 설정
                         </button>
@@ -277,6 +284,7 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
 
       {groupNoteOpen && <GroupNoteModal studentNames={selectedNames} onSave={saveGroupNote} onClose={() => setGroupNoteOpen(false)} />}
       {historyStudent && <StudentHistoryModal data={data} student={historyStudent} myCourseIds={myCourseIds} onClose={() => setHistoryStudent(null)} />}
+      {queueStudent && <TeacherCurriculumQueueModal data={data} updateData={updateData} student={queueStudent} myCourseIds={myCourseIds} onClose={() => setQueueStudent(null)} />}
     </div>
   );
 }
