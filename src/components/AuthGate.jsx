@@ -5,7 +5,7 @@ import { withTimeout } from "../lib/withTimeout.js";
 import LoginScreen from "./LoginScreen.jsx";
 import App from "../App.jsx";
 import TeacherApp from "../teacher-app/TeacherApp.jsx";
-import { C } from "../lib/theme.js";
+import { C, CLINIC_SITE_ROLES } from "../lib/theme.js";
 import { inputStyle, btnAccent, btnGhost } from "../styles/common.js";
 
 // 로그인 여부 + "이 계정에 연결된 선생님 정보가 있는지"를 확인한 뒤 실제 앱을 보여줍니다.
@@ -119,8 +119,10 @@ export default function AuthGate({ mode = "admin" }) {
     return (
       <CenterCard>
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>처음 오셨네요!</div>
-        <div style={{ fontSize: 12.5, color: C.sub, marginBottom: 14 }}>선생님 목록에 표시될 이름을 입력해주세요.</div>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 김도윤 T" style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
+        <div style={{ fontSize: 12.5, color: C.sub, marginBottom: 14 }}>
+          {mode === "teacher" ? "선생님 목록에 표시될 이름을 입력해주세요." : "화면 곳곳에 표시될 이름을 입력해주세요. (여기서는 이름만 등록하고, 이후 '관리자' 권한을 가진 계정이 이 계정의 권한을 지정해줘요.)"}
+        </div>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={mode === "teacher" ? "예: 김도윤 T" : "예: 김도윤 (또는 김도윤 T)"} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 12 }} />
         {onboardError && (
           <div style={{ fontSize: 11.5, fontFamily: "monospace", background: C.warnSoft, border: `1px solid ${C.warn}55`, borderRadius: 8, padding: 10, marginBottom: 12, color: C.warn, wordBreak: "break-word" }}>
             {onboardError}
@@ -137,13 +139,13 @@ export default function AuthGate({ mode = "admin" }) {
     return <TeacherApp onSignOut={signOut} currentUsername={emailToUsername(user.email)} currentUserId={user.id} />;
   }
 
-  if (teacherRole !== "admin") {
+  if (!CLINIC_SITE_ROLES.includes(teacherRole)) {
     return (
       <CenterCard>
         <div style={{ fontSize: 30, marginBottom: 10 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>관리자 권한이 필요해요</div>
+        <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>이 사이트를 쓸 권한이 없어요</div>
         <div style={{ fontSize: 12.5, color: C.sub, marginBottom: 16, lineHeight: 1.6 }}>
-          이 사이트는 클리닉실 관리자만 쓸 수 있어요. 선생님이시라면 대신 <b>선생님 앱(/teacher)</b>을 이용해주세요. 관리자 권한이 필요하시면 기존 관리자에게 요청해주세요.
+          이 사이트는 "관리자" 또는 "클리닉 선생님" 권한이 있는 계정만 쓸 수 있어요. 담당 과목 선생님이시라면 대신 <b>선생님 앱(/teacher)</b>을 이용해주세요. 클리닉실을 운영하시는 분인데 아직 권한을 못 받으셨다면, 기존 관리자에게 "클리닉 선생님"(또는 "관리자") 권한으로 바꿔달라고 요청해주세요 (반 관리 → 선생님별 반 관리에서 바꿀 수 있어요). 아직 관리자가 아무도 없다면, 처음 한 번은 Supabase 대시보드에서 직접 지정해야 해요(README 참고).
         </div>
         <button onClick={signOut} style={{ ...btnGhost, width: "100%", padding: "9px 0" }}>
           로그아웃
@@ -152,7 +154,7 @@ export default function AuthGate({ mode = "admin" }) {
     );
   }
 
-  return <App onSignOut={signOut} currentUsername={emailToUsername(user.email)} currentUserId={user.id} />;
+  return <App onSignOut={signOut} currentUsername={emailToUsername(user.email)} currentUserId={user.id} role={teacherRole} />;
 }
 
 function CenterCard({ children }) {

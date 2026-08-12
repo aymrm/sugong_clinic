@@ -12,7 +12,7 @@ import { todayStr, nowHM } from "./lib/time.js";
 import { teacherName, entriesForDate } from "./lib/util.js";
 import { C } from "./lib/theme.js";
 
-export default function App({ onSignOut, currentUsername, currentUserId }) {
+export default function App({ onSignOut, currentUsername, currentUserId, role }) {
   const [data, updateData, loaded, loadError, reload] = useAppData();
   const [tab, setTab] = useState("main");
   const [date, setDate] = useState(todayStr());
@@ -24,6 +24,11 @@ export default function App({ onSignOut, currentUsername, currentUserId }) {
   if (loadError || !data) {
     return <DataLoadError message={loadError || "알 수 없는 오류"} onRetry={reload} />;
   }
+
+  // "반 관리"(선생님 계정·권한·커리큘럼 템플릿 관리)는 admin만 — 클리닉 선생님이 담당 선생님 계정/권한에
+  // 관여하지 못하도록. 혹시 이전에 그 탭에 있던 상태에서 권한이 바뀌는 등으로 여기 들어오면 안전하게 첫 탭으로.
+  const canManageTeachers = role === "admin";
+  const effectiveTab = tab === "teachers" && !canManageTeachers ? "main" : tab;
 
   // 로그인한 계정에 연결된 선생님 id — "내 학습지" 구분 등에 사용됩니다.
   const currentTeacherId = data.teachers.find((t) => t.authUserId === currentUserId)?.id || null;
@@ -147,9 +152,9 @@ export default function App({ onSignOut, currentUsername, currentUserId }) {
 
   return (
     <div style={{ fontFamily: "'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif", background: C.bg, minHeight: "100%", color: C.ink }}>
-      <TopBar tab={tab} setTab={setTab} date={date} setDate={setDate} onSignOut={onSignOut} currentUsername={currentUsername} />
+      <TopBar tab={effectiveTab} setTab={setTab} date={date} setDate={setDate} onSignOut={onSignOut} currentUsername={currentUsername} role={role} />
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: "20px 20px 60px" }}>
-        {tab === "main" && (
+        {effectiveTab === "main" && (
           <MainView
             data={data}
             updateData={updateData}
@@ -165,10 +170,10 @@ export default function App({ onSignOut, currentUsername, currentUserId }) {
             openChecklist={(id) => setActiveSessionId(id)}
           />
         )}
-        {tab === "calendar" && <CalendarView data={data} updateData={updateData} />}
-        {tab === "students" && <StudentView data={data} updateData={updateData} />}
-        {tab === "teachers" && <TeacherView data={data} updateData={updateData} currentTeacherId={currentTeacherId} />}
-        {tab === "report" && <ReportView data={data} />}
+        {effectiveTab === "calendar" && <CalendarView data={data} updateData={updateData} />}
+        {effectiveTab === "students" && <StudentView data={data} updateData={updateData} />}
+        {effectiveTab === "teachers" && canManageTeachers && <TeacherView data={data} updateData={updateData} currentTeacherId={currentTeacherId} />}
+        {effectiveTab === "report" && <ReportView data={data} />}
       </div>
       {activeSessionId && <ChecklistModal data={data} sessionId={activeSessionId} updateData={updateData} onClose={() => setActiveSessionId(null)} />}
     </div>

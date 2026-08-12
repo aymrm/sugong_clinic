@@ -5,11 +5,13 @@ function daysAgo(n) {
 }
 
 export function seedState() {
-  // role: 'admin'(관리자 사이트 전체 접근) | 'teacher'(선생님 앱만 사용). 데모용으로 한 명만 admin으로 넣어둡니다.
+  // role: 'admin'(사이트 관리자, 전체 접근) | 'clinic_teacher'(클리닉 선생님, 클리닉실 운영만) | 'teacher'(담당 선생님, 선생님 앱만).
+  // 데모용으로 t1은 admin, t4는 반을 안 맡는 클리닉 선생님으로 넣어둡니다.
   const teachers = [
     { id: "t1", name: "김도윤 T", role: "admin" },
     { id: "t2", name: "박서준 T", role: "teacher" },
     { id: "t3", name: "이수아 T", role: "teacher" },
+    { id: "t4", name: "정민아", role: "clinic_teacher" },
   ];
   const students = [
     { id: "s1", name: "김민준", grade: "고1", school: "한빛고" },

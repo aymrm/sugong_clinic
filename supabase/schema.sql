@@ -5,8 +5,11 @@
 
 -- 선생님: Supabase Auth 사용자와 1:1로 연결됩니다(auth_user_id).
 -- 로그인 후 이 테이블에 자신의 행이 없으면 앱이 자동으로 만들어줍니다.
--- role: 'admin'(관리자 사이트 전체 접근) | 'teacher'(선생님 앱만 사용, 기본값).
--- 회원가입만으로 관리자 권한을 갖지 못하도록, 새로 가입한 계정은 항상 'teacher'로 시작합니다.
+-- role: 'admin'(사이트 관리자, 전체 접근 — 반 관리에서 계정/권한/커리큘럼 템플릿까지 다 만짐) |
+--       'clinic_teacher'(클리닉 선생님, 클리닉실 운영 — 오늘의 클리닉/달력/학생 관리/리포트는 되지만 반 관리는 접근 불가) |
+--       'teacher'(담당 선생님, 선생님 앱만 사용, 기본값).
+-- role 컬럼은 그냥 text라 값 제약이 없어서, 새 역할을 추가해도(예: 학생/게스트) 스키마 변경이 필요 없습니다.
+-- 회원가입만으로 admin/clinic_teacher 권한을 갖지 못하도록, 새로 가입한 계정은 항상 'teacher'로 시작합니다.
 -- 처음 admin 계정은 가입 후 Supabase 대시보드에서 수동으로 role을 'admin'으로 바꿔줘야 합니다(README 참고).
 create table if not exists teachers (
   id text primary key,

@@ -5,7 +5,7 @@ import StudentPickerModal from "./StudentPickerModal.jsx";
 import MaterialPickerModal from "./MaterialPickerModal.jsx";
 import AddScheduleSlotModal from "./AddScheduleSlotModal.jsx";
 import TypeBadge from "./ui/TypeBadge.jsx";
-import { C, WEEKDAY, ASSIGNMENT_TYPES } from "../lib/theme.js";
+import { C, WEEKDAY, ASSIGNMENT_TYPES, ROLE_OPTIONS, ROLE_LABELS } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm } from "../styles/common.js";
 import { todayStr } from "../lib/time.js";
 import { formatRange } from "../lib/util.js";
@@ -19,7 +19,11 @@ export default function TeacherView({ data, updateData, currentTeacherId }) {
       <CollapsibleSection title="커리큘럼 템플릿" desc="여러 단계로 구성된 커리큘럼을 미리 만들어두고 학생에게 통째로 적용할 수 있어요. 적용 후에는 학생마다 자유롭게 조정 가능합니다.">
         <CurriculumTemplatesPanel data={data} updateData={updateData} />
       </CollapsibleSection>
-      <CollapsibleSection title="선생님별 반 관리" desc="선생님 이름을 누르면 그 선생님이 담당하는 반들이 펼쳐집니다." defaultOpen>
+      <CollapsibleSection
+        title="선생님별 반 관리"
+        desc="선생님 이름을 누르면 그 선생님이 담당하는 반들이 펼쳐집니다. 반을 안 맡는 클리닉 선생님 계정도 여기 목록에 나오니, 여기서 이름 옆 '권한'으로 지정해주면 돼요. 이 화면(반 관리) 자체는 '관리자' 권한만 들어올 수 있어요."
+        defaultOpen
+      >
         <TeacherCourseSection data={data} updateData={updateData} currentTeacherId={currentTeacherId} />
       </CollapsibleSection>
     </div>
@@ -140,8 +144,8 @@ function TeacherCourseSection({ data, updateData, currentTeacherId }) {
               >
                 <span style={{ fontSize: 11, color: C.sub, width: 12, flexShrink: 0 }}>{isOpen ? "▾" : "▸"}</span>
                 <span style={{ fontSize: 13.5, fontWeight: 800, flex: 1, color: isOpen ? C.accentText : C.ink }}>{t.name}</span>
-                {t.role === "admin" && (
-                  <span style={{ fontSize: 9.5, fontWeight: 700, color: C.accentText, background: C.accentSoft, borderRadius: 999, padding: "1px 8px" }}>관리자</span>
+                {t.role && t.role !== "teacher" && (
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: C.accentText, background: C.accentSoft, borderRadius: 999, padding: "1px 8px" }}>{ROLE_LABELS[t.role] || t.role}</span>
                 )}
                 <span style={{ fontSize: 11, color: C.sub }}>{courses.length}개 반</span>
               </button>
@@ -168,15 +172,18 @@ function TeacherCourseSection({ data, updateData, currentTeacherId }) {
                       }
                       style={selectStyle}
                     >
-                      <option value="teacher">선생님</option>
-                      <option value="admin">관리자</option>
+                      {ROLE_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS[r]}
+                        </option>
+                      ))}
                     </select>
                     <button onClick={() => removeTeacher(t.id)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 12 }}>
                       선생님 삭제
                     </button>
                   </div>
                   <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 10 }}>
-                    "관리자"는 이 사이트(관리자용) 전체에 접근할 수 있고, "선생님"은 선생님 앱(/teacher)만 쓸 수 있어요.
+                    "담당 선생님"은 선생님 앱(/teacher)만 쓸 수 있고, "클리닉 선생님"은 이 사이트(오늘의 클리닉/달력/학생 관리/리포트)를 쓸 수 있지만 이 "반 관리" 화면(선생님 계정·권한·커리큘럼 템플릿)에는 못 들어와요. "관리자"만 이 화면까지 전부 접근할 수 있어요.
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {courses.map((c) => (

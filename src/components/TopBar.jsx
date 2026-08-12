@@ -1,20 +1,21 @@
-import { C, WEEKDAY } from "../lib/theme.js";
+import { C, WEEKDAY, ROLE_LABELS } from "../lib/theme.js";
 
 const TABS = [
   { id: "main", label: "오늘의 클리닉" },
   { id: "calendar", label: "달력" },
   { id: "students", label: "학생 관리" },
-  { id: "teachers", label: "반 관리" },
+  { id: "teachers", label: "반 관리", adminOnly: true },
   { id: "report", label: "리포트" },
 ];
 
-export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentUsername }) {
+export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentUsername, role }) {
+  const visibleTabs = TABS.filter((it) => !it.adminOnly || role === "admin");
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 30 }}>
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: "14px 20px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
         <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: -0.3, color: C.accentText }}>클리닉실 관리</div>
         <div style={{ display: "flex", gap: 4 }}>
-          {TABS.map((it) => (
+          {visibleTabs.map((it) => (
             <button
               key={it.id}
               onClick={() => setTab(it.id)}
@@ -41,7 +42,12 @@ export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentU
           </div>
           {onSignOut && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, borderLeft: `1px solid ${C.line}`, paddingLeft: 12 }}>
-              {currentUsername && <span style={{ fontSize: 11.5, color: C.sub }}>{currentUsername}</span>}
+              {currentUsername && (
+                <span style={{ fontSize: 11.5, color: C.sub }}>
+                  {currentUsername}
+                  {role && <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, color: C.accentText, background: C.accentSoft, borderRadius: 999, padding: "1px 7px" }}>{ROLE_LABELS[role] || role}</span>}
+                </span>
+              )}
               <button
                 onClick={onSignOut}
                 style={{ border: `1px solid ${C.line}`, background: "transparent", color: C.sub, borderRadius: 6, padding: "5px 9px", fontSize: 12, cursor: "pointer" }}
