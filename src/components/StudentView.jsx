@@ -242,6 +242,7 @@ export default function StudentView({ data, updateData }) {
       </div>
 
       {withdrawnModalOpen && <WithdrawnStudentsModal data={data} updateData={updateData} onClose={() => setWithdrawnModalOpen(false)} />}
+      {curriculumStudent && <StudentCurriculumModal data={data} updateData={updateData} student={curriculumStudent} onClose={() => setCurriculumStudent(null)} />}
     </div>
   );
 }

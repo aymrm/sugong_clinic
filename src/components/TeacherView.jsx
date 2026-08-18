@@ -5,6 +5,7 @@ import StudentPickerModal from "./StudentPickerModal.jsx";
 import MaterialPickerModal from "./MaterialPickerModal.jsx";
 import AddScheduleSlotModal from "./AddScheduleSlotModal.jsx";
 import TypeBadge from "./ui/TypeBadge.jsx";
+import WeekdayPicker from "./ui/WeekdayPicker.jsx";
 import { C, WEEKDAY, ASSIGNMENT_TYPES, ROLE_OPTIONS, ROLE_LABELS } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm } from "../styles/common.js";
 import { todayStr } from "../lib/time.js";
@@ -97,16 +98,10 @@ function TeacherCourseSection({ data, updateData, currentTeacherId }) {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <input value={newCourse.name} onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })} placeholder="수업명" style={inputStyle} />
         <input value={newCourse.subject} onChange={(e) => setNewCourse({ ...newCourse, subject: e.target.value })} placeholder="과목" style={{ ...inputStyle, width: 90 }} />
-        <select value={newCourse.dayOfWeek} onChange={(e) => setNewCourse({ ...newCourse, dayOfWeek: Number(e.target.value) })} style={selectStyle}>
-          {WEEKDAY.map((w, i) => (
-            <option key={i} value={i}>
-              {w}요일
-            </option>
-          ))}
-        </select>
+        <WeekdayPicker value={newCourse.dayOfWeek} onChange={(d) => setNewCourse({ ...newCourse, dayOfWeek: d })} size={30} />
         <input type="time" value={newCourse.start} onChange={(e) => setNewCourse({ ...newCourse, start: e.target.value })} style={inputStyle} />
         <input type="time" value={newCourse.end} onChange={(e) => setNewCourse({ ...newCourse, end: e.target.value })} style={inputStyle} />
         <select value={newCourse.teacherId} onChange={(e) => setNewCourse({ ...newCourse, teacherId: e.target.value })} style={selectStyle}>
@@ -238,6 +233,10 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
   const [panel, setPanel] = useState(null); // null | 'roster' | 'curriculum' | 'progress'
   const [pickerOpen, setPickerOpen] = useState(false);
   const [scheduleModal, setScheduleModal] = useState(null); // {studentId, isNewEnroll}
+  const [addSlotOpen, setAddSlotOpen] = useState(false);
+  const [newSlotDay, setNewSlotDay] = useState(course.dayOfWeek);
+  const [newSlotStart, setNewSlotStart] = useState(course.start);
+  const [newSlotEnd, setNewSlotEnd] = useState(course.end);
 
   function patch(field, value) {
     updateData((next) => {
@@ -248,6 +247,22 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
   const roster = data.students.filter((s) => !s.withdrawn && data.enrollments.some((e) => e.studentId === s.id && e.courseId === course.id));
   const notEnrolled = data.students.filter((s) => !s.withdrawn && !roster.some((r) => r.id === s.id));
   const curriculum = data.courseCurriculum.filter((cc) => cc.courseId === course.id);
+  const extraSlots = course.extraTimeSlots || [];
+
+  function addExtraSlot() {
+    updateData((next) => {
+      const c = next.courses.find((x) => x.id === course.id);
+      if (!c.extraTimeSlots) c.extraTimeSlots = [];
+      c.extraTimeSlots.push({ id: "slot_" + Date.now(), dayOfWeek: newSlotDay, start: newSlotStart, end: newSlotEnd });
+    });
+    setAddSlotOpen(false);
+  }
+  function removeExtraSlot(slotId) {
+    updateData((next) => {
+      const c = next.courses.find((x) => x.id === course.id);
+      c.extraTimeSlots = (c.extraTimeSlots || []).filter((s) => s.id !== slotId);
+    });
+  }
 
   function pickStudentToAdd(studentId) {
     setPickerOpen(false);
@@ -289,13 +304,7 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input value={course.name} onChange={(e) => patch("name", e.target.value)} style={{ ...inputStyle, width: 130, fontWeight: 700 }} />
         <input value={course.subject} onChange={(e) => patch("subject", e.target.value)} style={{ ...inputStyle, width: 70 }} />
-        <select value={course.dayOfWeek} onChange={(e) => patch("dayOfWeek", Number(e.target.value))} style={selectStyle}>
-          {WEEKDAY.map((w, i) => (
-            <option key={i} value={i}>
-              {w}요일
-            </option>
-          ))}
-        </select>
+        <WeekdayPicker value={course.dayOfWeek} onChange={(d) => patch("dayOfWeek", d)} size={28} />
         <input type="time" value={course.start} onChange={(e) => patch("start", e.target.value)} style={inputStyle} />
         <span style={{ color: C.sub, fontSize: 12 }}>~</span>
         <input type="time" value={course.end} onChange={(e) => patch("end", e.target.value)} style={inputStyle} />
@@ -320,6 +329,38 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
         >
           반 삭제
         </button>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+        <span style={{ fontSize: 10.5, color: C.sub }}>클리닉 시간대</span>
+        <span style={{ fontSize: 11, background: C.accentSoft, color: C.accentText, borderRadius: 999, padding: "3px 9px", fontWeight: 600 }}>
+          기본 · {WEEKDAY[course.dayOfWeek]} {course.start}~{course.end}
+        </span>
+        {extraSlots.map((s) => (
+          <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 9px" }}>
+            {WEEKDAY[s.dayOfWeek]} {s.start}~{s.end}
+            <button onClick={() => removeExtraSlot(s.id)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 10 }}>
+              ✕
+            </button>
+          </span>
+        ))}
+        <button onClick={() => setAddSlotOpen((v) => !v)} style={{ ...btnGhostSm, fontSize: 11, padding: "3px 9px" }}>
+          + 시간대 추가
+        </button>
+      </div>
+      {addSlotOpen && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, background: C.bg, borderRadius: 8, padding: 8 }}>
+          <WeekdayPicker value={newSlotDay} onChange={setNewSlotDay} size={26} />
+          <input type="time" value={newSlotStart} onChange={(e) => setNewSlotStart(e.target.value)} style={inputStyle} />
+          <span style={{ color: C.sub, fontSize: 12 }}>~</span>
+          <input type="time" value={newSlotEnd} onChange={(e) => setNewSlotEnd(e.target.value)} style={inputStyle} />
+          <button onClick={addExtraSlot} style={btnAccent}>
+            추가
+          </button>
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: C.sub, marginTop: 4 }}>
+        수업 시간이 아니라 "이 반이 보통 클리닉 하는 시간"이에요 — 한 반이라도 클리닉 시간대가 여러 개일 수 있어서, 필요한 만큼 추가할 수 있습니다. 학생을 반에 등록할 때 여기 등록된 시간대들이 우선 후보로 보여요.
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 10 }}>

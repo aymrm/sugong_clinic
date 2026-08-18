@@ -93,9 +93,8 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
     setIsMathflat(false);
     setMathflatFollowUp("none");
     setMathflatNote("");
-    setExamDate("");
-    setExamStartTime("");
-    setExamDurationMinutes("");
+    // 시험 날짜/시작시간/소요시간은 초기화하지 않고 유지합니다 — 같은 시험을 여러 번 나눠서 낼 때
+    // (예: 반별로 따로 학생을 고르는 경우) 매번 다시 입력할 필요 없도록.
     setTotalQuestions("");
   }
 

@@ -6,7 +6,8 @@ import { C } from "../lib/theme.js";
 import { teacherName } from "../lib/util.js";
 import { inputStyle, btnAccent, btnGhost, btnGhostSm } from "../styles/common.js";
 
-// 당일 추가 모달 — 학생/수업은 검색 가능한 반→학생 트리 팝업에서 선택, 시간대·학습 항목까지 지정
+// 당일 추가 모달 — 학생/수업은 검색 가능한 반→학생 트리 팝업에서 선택, 시간대·학습 항목까지 지정.
+// 한 명 추가해도 모달이 닫히지 않고 시작~종료 시간은 그대로 유지돼서, 같은 시간대로 여러 명을 이어서 추가할 수 있어요.
 export default function AdHocAddModal({ data, rosterPairs, onAdd, onClose }) {
   const [studentId, setStudentId] = useState("");
   const [courseId, setCourseId] = useState("");
@@ -16,6 +17,7 @@ export default function AdHocAddModal({ data, rosterPairs, onAdd, onClose }) {
   const [start, setStart] = useState("18:00");
   const [end, setEnd] = useState("20:00");
   const [items, setItems] = useState([{ material: "", rangeFrom: "", rangeTo: "" }]);
+  const [justAdded, setJustAdded] = useState(false);
 
   useEffect(() => {
     if (course) {
@@ -49,6 +51,11 @@ export default function AdHocAddModal({ data, rosterPairs, onAdd, onClose }) {
       customEnd: end,
       customTasks: items.filter((it) => it.material.trim() || it.rangeFrom.trim() || it.rangeTo.trim()),
     });
+    // 모달은 닫지 않고, 학생/학습 항목만 비워서 같은 시간대로 다음 사람을 이어서 추가할 수 있게 합니다.
+    setStudentId("");
+    setItems([{ material: "", rangeFrom: "", rangeTo: "" }]);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1800);
   }
 
   return (
@@ -56,13 +63,16 @@ export default function AdHocAddModal({ data, rosterPairs, onAdd, onClose }) {
       onClose={onClose}
       title="당일 추가"
       footer={
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onClose} style={btnGhost}>
-            취소
-          </button>
-          <button disabled={!courseId || !studentId} onClick={submit} style={btnAccent}>
-            오늘 명단에 추가
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {justAdded && <span style={{ fontSize: 12, color: C.accentText, fontWeight: 700 }}>✓ 추가됨</span>}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button onClick={onClose} style={btnGhost}>
+              닫기
+            </button>
+            <button disabled={!courseId || !studentId} onClick={submit} style={btnAccent}>
+              오늘 명단에 추가
+            </button>
+          </div>
         </div>
       }
     >

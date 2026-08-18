@@ -107,7 +107,16 @@ export default function CalendarView({ data, updateData }) {
 
 function DayScheduleModal({ data, updateData, date, onClose }) {
   const dow = new Date(date + "T00:00:00").getDay();
-  const entries = entriesForDate(data, date).slice().sort((a, b) => (a.start < b.start ? -1 : 1));
+  // 시작 시간이 같으면(DB에서 그냥 가져온 순서라 이름순도 추가순도 아닌 뒤죽박죽 순서가 되던 문제가 있어서)
+  // 학생 이름순으로 정렬합니다.
+  const entries = entriesForDate(data, date)
+    .slice()
+    .sort((a, b) => {
+      if (a.start !== b.start) return a.start < b.start ? -1 : 1;
+      const nameA = data.students.find((s) => s.id === a.studentId)?.name || "";
+      const nameB = data.students.find((s) => s.id === b.studentId)?.name || "";
+      return nameA.localeCompare(nameB, "ko");
+    });
 
   const buckets = new Map();
   entries.forEach((e) => {
@@ -168,14 +177,13 @@ function DayScheduleModal({ data, updateData, date, onClose }) {
 }
 
 function AddEntryForm({ data, updateData, date, dayOfWeek }) {
-  const [studentId, setStudentId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const course = data.courses.find((c) => c.id === courseId);
-  const student = data.students.find((s) => s.id === studentId);
   const [start, setStart] = useState("18:00");
   const [end, setEnd] = useState("20:00");
   const [recurrence, setRecurrence] = useState("once");
+  const [justAdded, setJustAdded] = useState(0);
 
   useEffect(() => {
     if (course) {
@@ -184,50 +192,58 @@ function AddEntryForm({ data, updateData, date, dayOfWeek }) {
     }
   }, [courseId]); // eslint-disable-line
 
-  function handlePick(sid, cid) {
-    setStudentId(sid);
-    setCourseId(cid);
-    setPickerOpen(false);
+  const todaysPairs = entriesForDate(data, date).map((e) => ({ studentId: e.studentId, courseId: e.courseId }));
+  const candidateStudents = data.students.filter((s) => !s.withdrawn);
+  const classRoster = data.enrollments.filter((e) => e.courseId === courseId).map((e) => e.studentId);
+
+  function addStudents(studentIds) {
+    if (!courseId || studentIds.length === 0) return;
+    let added = 0;
+    updateData((next) => {
+      studentIds.forEach((sid) => {
+        // 오늘 이 반에 이미 있으면 중복으로 또 추가하지 않고 건너뜀
+        if (todaysPairs.some((p) => p.studentId === sid && p.courseId === courseId)) return;
+        if (!next.enrollments.some((e) => e.studentId === sid && e.courseId === courseId)) {
+          next.enrollments.push({ studentId: sid, courseId });
+        }
+        const entry = {
+          id: "sch_" + Date.now() + Math.random().toString(36).slice(2, 6),
+          studentId: sid,
+          courseId,
+          start,
+          end,
+          recurrence,
+        };
+        if (recurrence === "weekly") entry.dayOfWeek = dayOfWeek;
+        else entry.date = date;
+        next.scheduleEntries.push(entry);
+        added++;
+      });
+    });
+    setJustAdded(added);
+    setTimeout(() => setJustAdded(0), 2000);
   }
 
-  const todaysPairs = entriesForDate(data, date).map((e) => ({ studentId: e.studentId, courseId: e.courseId }));
-
-  function submit() {
-    if (!courseId || !studentId) return;
-    updateData((next) => {
-      if (!next.enrollments.some((e) => e.studentId === studentId && e.courseId === courseId)) {
-        next.enrollments.push({ studentId, courseId });
-      }
-      const entry = {
-        id: "sch_" + Date.now() + Math.random().toString(36).slice(2, 5),
-        studentId,
-        courseId,
-        start,
-        end,
-        recurrence,
-      };
-      if (recurrence === "weekly") entry.dayOfWeek = dayOfWeek;
-      else entry.date = date;
-      next.scheduleEntries.push(entry);
-    });
-    setStudentId("");
-    setCourseId("");
+  function addWholeClass() {
+    addStudents(classRoster);
   }
 
   return (
     <div>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 8 }}>클리닉 오는 사람 추가</div>
+
       <div style={{ marginBottom: 10 }}>
-        <button onClick={() => setPickerOpen(true)} style={{ ...btnGhostSm, width: "100%", textAlign: "left", display: "block" }}>
-          {student ? (
-            <>
-              <b>{student.name}</b> · {course?.name} ({teacherName(data, course?.teacherId)})
-            </>
-          ) : (
-            "학생 선택하기 (반 목록에서 검색/선택)"
-          )}
-        </button>
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>반</div>
+        <select value={courseId} onChange={(e) => setCourseId(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>
+          <option value="">반 선택</option>
+          {data.courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} ({teacherName(data, c.teacherId)})
+            </option>
+          ))}
+        </select>
       </div>
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={inputStyle} />
         <span style={{ color: C.sub, fontSize: 12, alignSelf: "center" }}>~</span>
@@ -243,17 +259,29 @@ function AddEntryForm({ data, updateData, date, dayOfWeek }) {
           매주 {WEEKDAY[dayOfWeek]}요일 이 시간
         </label>
       </div>
-      <button disabled={!courseId || !studentId} onClick={submit} style={btnAccent}>
-        추가
-      </button>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button disabled={!courseId} onClick={() => setPickerOpen(true)} style={{ ...btnGhostSm, opacity: courseId ? 1 : 0.5 }}>
+          학생 선택 (여러 명 가능)
+        </button>
+        <button disabled={!courseId || classRoster.length === 0} onClick={addWholeClass} style={{ ...btnAccent, opacity: !courseId || classRoster.length === 0 ? 0.5 : 1 }}>
+          이 반 전체 추가{courseId ? ` (${classRoster.length}명)` : ""}
+        </button>
+        {justAdded > 0 && <span style={{ fontSize: 12, color: C.accentText, fontWeight: 700 }}>✓ {justAdded}명 추가됨</span>}
+      </div>
 
       {pickerOpen && (
         <StudentPickerModal
           data={data}
-          mode="tree"
-          excludePairs={todaysPairs}
-          title="학생 선택 (이 날짜에 이미 있는 학생은 제외됩니다)"
-          onPick={handlePick}
+          mode="flat"
+          multi
+          students={candidateStudents}
+          fixedCourseId={courseId}
+          title={`${course?.name || ""}에 추가할 학생`}
+          onPick={(ids) => {
+            addStudents(ids);
+            setPickerOpen(false);
+          }}
           onClose={() => setPickerOpen(false)}
         />
       )}

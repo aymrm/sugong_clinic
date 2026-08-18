@@ -29,6 +29,8 @@ create table if not exists students (
 );
 alter table students add column if not exists school text;
 
+-- day_of_week/start_time/end_time은 "기본/대표" 클리닉 시간이고, extra_time_slots는 그 외 추가 시간대들입니다.
+-- 반(과목) 하나가 클리닉 시간대를 여러 개 가질 수 있어서(예: 화 17~19시 + 목 19~21시) 이렇게 나눠뒀습니다.
 create table if not exists courses (
   id text primary key,
   name text not null,
@@ -36,8 +38,10 @@ create table if not exists courses (
   day_of_week int not null,
   start_time text not null,
   end_time text not null,
-  teacher_id text references teachers(id) on delete set null
+  teacher_id text references teachers(id) on delete set null,
+  extra_time_slots jsonb -- [{id, dayOfWeek, start, end}]
 );
+alter table courses add column if not exists extra_time_slots jsonb;
 
 create table if not exists enrollments (
   student_id text not null references students(id) on delete cascade,

@@ -33,6 +33,8 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
     if (!byCourse.has(e.courseId)) byCourse.set(e.courseId, []);
     byCourse.get(e.courseId).push(e);
   });
+  // DB에서 그냥 가져온 순서라 이름순도 추가순도 아니고 뒤죽박죽으로 보이는 문제가 있어서, 이름순으로 정렬합니다.
+  byCourse.forEach((list) => list.sort((a, b) => (data.students.find((s) => s.id === a.studentId)?.name || "").localeCompare(data.students.find((s) => s.id === b.studentId)?.name || "", "ko")));
 
   // 내 반 어디든 소속된 학생 전체 — "오늘 갑자기 온 학생" 추가할 때 이름으로 찾기 쉽게 후보로 제공
   const myStudents = [...new Set(myCourses.flatMap((c) => data.enrollments.filter((e) => e.courseId === c.id).map((e) => e.studentId)))]

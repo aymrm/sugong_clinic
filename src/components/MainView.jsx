@@ -96,14 +96,26 @@ export default function MainView({
     a.time < b.time ? -1 : a.time > b.time ? 1 : a.type === "arrival" ? -1 : 1
   );
 
+  // 같은 시간대 안에서 학생들이 어떤 순서로 나열될지가(DB에서 그냥 가져온 순서라) 이름순/추가순 어느 것도
+  // 아니고 뒤죽박죽으로 보이는 문제가 있어서, 각 항목 안에서는 학생 이름순으로 정렬해줍니다.
+  function studentNameOf(id) {
+    return data.students.find((s) => s.id === id)?.name || "";
+  }
+  timeline.forEach((ev) => {
+    if (ev.entries) ev.entries.sort((a, b) => studentNameOf(a.studentId).localeCompare(studentNameOf(b.studentId), "ko"));
+    if (ev.participants) ev.participants.sort((a, b) => studentNameOf(a).localeCompare(studentNameOf(b), "ko"));
+  });
+
   const sessionsToday = rosterPairs.map((p) => findSession(p.studentId, p.courseId)).filter(Boolean);
   function seatSession(seatId) {
     return sessionsToday.find((s) => s.seatId === seatId);
   }
-  const notSeated = rosterPairs.filter((p) => {
-    const sess = findSession(p.studentId, p.courseId);
-    return !sess || (!sess.seatId && sess.status !== "완료");
-  });
+  const notSeated = rosterPairs
+    .filter((p) => {
+      const sess = findSession(p.studentId, p.courseId);
+      return !sess || (!sess.seatId && sess.status !== "완료");
+    })
+    .sort((a, b) => (data.students.find((s) => s.id === a.studentId)?.name || "").localeCompare(data.students.find((s) => s.id === b.studentId)?.name || "", "ko"));
 
   function patchExamAssignment(studentId, examSessionId, patch) {
     updateData((next) => {
@@ -485,10 +497,7 @@ export default function MainView({
         <AdHocAddModal
           data={data}
           rosterPairs={rosterPairs}
-          onAdd={(payload) => {
-            onAddAdHoc(payload);
-            setAddModalOpen(false);
-          }}
+          onAdd={(payload) => onAddAdHoc(payload)}
           onClose={() => setAddModalOpen(false)}
         />
       )}
