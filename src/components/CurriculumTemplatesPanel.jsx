@@ -8,7 +8,7 @@ import { btnAccent, btnGhostSm } from "../styles/common.js";
 
 // 여러 단계로 구성된 재사용 가능한 커리큘럼 템플릿 목록. 만들어두고 "학생에게 적용"하면
 // 그 학생의 커리큘럼 큐에 단계들이 통째로 추가됩니다(이후 학생마다 자유롭게 조정 가능).
-export default function CurriculumTemplatesPanel({ data, updateData }) {
+export default function CurriculumTemplatesPanel({ data, updateData, currentTeacherId }) {
   const [editModal, setEditModal] = useState(null); // {template} | {template:null} | null
   const [applyTemplate, setApplyTemplate] = useState(null);
   const templates = data.curriculumTemplates || [];
@@ -61,7 +61,9 @@ export default function CurriculumTemplatesPanel({ data, updateData }) {
         )}
       </div>
 
-      {editModal && <CurriculumTemplateModal data={data} updateData={updateData} template={editModal.template} onClose={() => setEditModal(null)} />}
+      {editModal && (
+        <CurriculumTemplateModal data={data} updateData={updateData} template={editModal.template} currentTeacherId={currentTeacherId} onClose={() => setEditModal(null)} />
+      )}
       {applyTemplate && <ApplyCurriculumModal data={data} updateData={updateData} template={applyTemplate} onClose={() => setApplyTemplate(null)} />}
     </div>
   );

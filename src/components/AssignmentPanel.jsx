@@ -4,7 +4,7 @@ import AddScheduleSlotModal from "./AddScheduleSlotModal.jsx";
 import { C, ASSIGNMENT_TYPES, WEEKDAY, MATHFLAT_FOLLOWUP_OPTIONS, MATHFLAT_FOLLOWUP_LABELS } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
 import { todayStr } from "../lib/time.js";
-import { formatRange } from "../lib/util.js";
+import { formatRange, weekOrder } from "../lib/util.js";
 
 // 학생 1명의 소속 수업 + 숙제/공부/시험 "계획"을 설정하는 패널.
 // 여기서는 설정만 하고, 실제 체크/진행 입력은 "오늘의 클리닉"에서 이루어집니다.
@@ -168,7 +168,9 @@ export default function AssignmentPanel({ data, student, updateData }) {
         {enrolledCourses.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
             {enrolledCourses.map((c) => {
-              const slots = data.scheduleEntries.filter((e) => e.studentId === student.id && e.courseId === c.id && e.recurrence === "weekly");
+              const slots = data.scheduleEntries
+                .filter((e) => e.studentId === student.id && e.courseId === c.id && e.recurrence === "weekly")
+                .sort((a, b) => weekOrder(a.dayOfWeek) - weekOrder(b.dayOfWeek) || a.start.localeCompare(b.start));
               return (
                 <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5 }}>
                   <span style={{ color: C.sub, fontWeight: 600, minWidth: 70 }}>{c.name}</span>

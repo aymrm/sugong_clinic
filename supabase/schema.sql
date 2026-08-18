@@ -140,12 +140,19 @@ alter table student_assignments add column if not exists curriculum_template_nam
 -- 커리큘럼 템플릿: 여러 단계(숙제/공부/시험/지시사항)로 이루어진 재사용 가능한 커리큘럼을 미리 만들어두고
 -- 학생에게 적용하면, steps 각각이 그 학생의 studentAssignments로 복사되어 생성됩니다(적용 후에는 학생마다
 -- 자유롭게 추가/수정/삭제 가능 — 일반 studentAssignments와 동일하게 다뤄지기 때문).
+-- material_shortlist: 이 템플릿에서 자주 쓰는 교재 이름들을 미리 골라둔 목록(교재/학습지 라이브러리에서 선택).
+--   단계를 만들 때마다 매번 입력하지 않고 클릭해서 바로 채울 수 있도록.
+-- default_material: shortlist 중 하나를 기본값으로 지정해두면 새 단계를 추가할 때 자동으로 채워집니다.
 create table if not exists curriculum_templates (
   id text primary key,
   name text not null,
   description text,
-  steps jsonb not null default '[]'
+  steps jsonb not null default '[]',
+  material_shortlist jsonb,
+  default_material text
 );
+alter table curriculum_templates add column if not exists material_shortlist jsonb;
+alter table curriculum_templates add column if not exists default_material text;
 
 create table if not exists teacher_notes (
   id text primary key,

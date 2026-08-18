@@ -9,7 +9,7 @@ import WeekdayPicker from "./ui/WeekdayPicker.jsx";
 import { C, WEEKDAY, ASSIGNMENT_TYPES, ROLE_OPTIONS, ROLE_LABELS } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm } from "../styles/common.js";
 import { todayStr } from "../lib/time.js";
-import { formatRange } from "../lib/util.js";
+import { formatRange, weekOrder } from "../lib/util.js";
 
 export default function TeacherView({ data, updateData, currentTeacherId }) {
   return (
@@ -18,7 +18,7 @@ export default function TeacherView({ data, updateData, currentTeacherId }) {
         <AssignmentTemplates data={data} updateData={updateData} />
       </CollapsibleSection>
       <CollapsibleSection title="커리큘럼 템플릿" desc="여러 단계로 구성된 커리큘럼을 미리 만들어두고 학생에게 통째로 적용할 수 있어요. 적용 후에는 학생마다 자유롭게 조정 가능합니다.">
-        <CurriculumTemplatesPanel data={data} updateData={updateData} />
+        <CurriculumTemplatesPanel data={data} updateData={updateData} currentTeacherId={currentTeacherId} />
       </CollapsibleSection>
       <CollapsibleSection
         title="선생님별 반 관리"
@@ -247,7 +247,14 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
   const roster = data.students.filter((s) => !s.withdrawn && data.enrollments.some((e) => e.studentId === s.id && e.courseId === course.id));
   const notEnrolled = data.students.filter((s) => !s.withdrawn && !roster.some((r) => r.id === s.id));
   const curriculum = data.courseCurriculum.filter((cc) => cc.courseId === course.id);
-  const extraSlots = course.extraTimeSlots || [];
+
+  // 시간대들을 "기본 하나 + 추가 여러 개"처럼 위계가 있는 것으로 다루면, 반 전체가 예를 들어 월/수 이틀로
+  // 나뉘어 클리닉 하는 경우에 어느 게 "진짜" 시간인지 오해를 줄 수 있어서, 전부 동등한 시간대 목록으로 다룹니다.
+  // (내부적으로는 courses 테이블에 있는 day_of_week/start/end 1개 + extra_time_slots 배열로 저장되는 건 그대로지만,
+  // 화면에서는 구분 없이 같은 모양으로 보여주고, 어떤 걸 지워도 남은 것 중 하나가 자동으로 그 대표 자리를 이어받습니다.)
+  const allSlots = [{ id: "__primary__", dayOfWeek: course.dayOfWeek, start: course.start, end: course.end }, ...(course.extraTimeSlots || [])].sort(
+    (a, b) => weekOrder(a.dayOfWeek) - weekOrder(b.dayOfWeek) || a.start.localeCompare(b.start)
+  );
 
   function addExtraSlot() {
     updateData((next) => {
@@ -257,10 +264,24 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
     });
     setAddSlotOpen(false);
   }
-  function removeExtraSlot(slotId) {
+  function removeCourseSlot(slotId) {
+    if (allSlots.length <= 1) {
+      alert("이 반의 마지막 시간대예요. 최소 하나는 남아있어야 해요.");
+      return;
+    }
     updateData((next) => {
       const c = next.courses.find((x) => x.id === course.id);
-      c.extraTimeSlots = (c.extraTimeSlots || []).filter((s) => s.id !== slotId);
+      const extras = c.extraTimeSlots || [];
+      if (slotId === "__primary__") {
+        // 대표 자리(day_of_week/start/end)로 쓰이던 시간대를 지우면, 남은 시간대 중 하나가 그 자리를 이어받습니다.
+        const [promoted, ...rest] = extras;
+        c.dayOfWeek = promoted.dayOfWeek;
+        c.start = promoted.start;
+        c.end = promoted.end;
+        c.extraTimeSlots = rest;
+      } else {
+        c.extraTimeSlots = extras.filter((s) => s.id !== slotId);
+      }
     });
   }
 
@@ -304,10 +325,6 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input value={course.name} onChange={(e) => patch("name", e.target.value)} style={{ ...inputStyle, width: 130, fontWeight: 700 }} />
         <input value={course.subject} onChange={(e) => patch("subject", e.target.value)} style={{ ...inputStyle, width: 70 }} />
-        <WeekdayPicker value={course.dayOfWeek} onChange={(d) => patch("dayOfWeek", d)} size={28} />
-        <input type="time" value={course.start} onChange={(e) => patch("start", e.target.value)} style={inputStyle} />
-        <span style={{ color: C.sub, fontSize: 12 }}>~</span>
-        <input type="time" value={course.end} onChange={(e) => patch("end", e.target.value)} style={inputStyle} />
         <select value={course.teacherId || ""} onChange={(e) => patch("teacherId", e.target.value)} style={selectStyle}>
           <option value="">담당 미지정</option>
           {data.teachers.map((t) => (
@@ -333,13 +350,10 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
         <span style={{ fontSize: 10.5, color: C.sub }}>클리닉 시간대</span>
-        <span style={{ fontSize: 11, background: C.accentSoft, color: C.accentText, borderRadius: 999, padding: "3px 9px", fontWeight: 600 }}>
-          기본 · {WEEKDAY[course.dayOfWeek]} {course.start}~{course.end}
-        </span>
-        {extraSlots.map((s) => (
+        {allSlots.map((s) => (
           <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 9px" }}>
             {WEEKDAY[s.dayOfWeek]} {s.start}~{s.end}
-            <button onClick={() => removeExtraSlot(s.id)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 10 }}>
+            <button onClick={() => removeCourseSlot(s.id)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 10 }}>
               ✕
             </button>
           </span>
@@ -360,7 +374,7 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
         </div>
       )}
       <div style={{ fontSize: 10, color: C.sub, marginTop: 4 }}>
-        수업 시간이 아니라 "이 반이 보통 클리닉 하는 시간"이에요 — 한 반이라도 클리닉 시간대가 여러 개일 수 있어서, 필요한 만큼 추가할 수 있습니다. 학생을 반에 등록할 때 여기 등록된 시간대들이 우선 후보로 보여요.
+        수업 시간이 아니라 "이 반이 클리닉 하는 시간"이에요. 반 전체가 여러 요일에 나눠서 클리닉 할 수도 있어서, 시간대를 필요한 만큼 동등하게 추가할 수 있고 어떤 시간대든 지울 수 있어요(최소 1개는 남아있어야 해요). 학생을 반에 등록할 때 여기 등록된 시간대들이 우선 후보로 보여요.
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
@@ -379,7 +393,9 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
             {roster.map((s) => {
-              const slots = data.scheduleEntries.filter((e) => e.studentId === s.id && e.courseId === course.id && e.recurrence === "weekly");
+              const slots = data.scheduleEntries
+                .filter((e) => e.studentId === s.id && e.courseId === course.id && e.recurrence === "weekly")
+                .sort((a, b) => weekOrder(a.dayOfWeek) - weekOrder(b.dayOfWeek) || a.start.localeCompare(b.start));
               return (
                 <div key={s.id} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

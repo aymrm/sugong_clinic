@@ -46,6 +46,12 @@ export function compareGrade(gradeA, gradeB) {
   return ga.localeCompare(gb, "ko");
 }
 
+// dayOfWeek(0=일~6=토, Date.getDay() 규칙)를 "월요일이 한 주의 시작"이라는 자연스러운 순서로 바꿔주는 정렬 키.
+// 월(1)->0, 화(2)->1, ..., 토(6)->5, 일(0)->6. 시간대 목록 등을 "월화수목금토일" 순서로 보여줄 때 씁니다.
+export function weekOrder(dayOfWeek) {
+  return (dayOfWeek + 6) % 7;
+}
+
 // "시작~끝" 두 값을 하나의 표시용 문자열로 합침. 한쪽만 있으면 그것만, 둘 다 없으면 빈 문자열.
 export function formatRange(from, to) {
   const f = (from || "").trim();

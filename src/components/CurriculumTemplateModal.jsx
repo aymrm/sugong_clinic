@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import Modal from "./Modal.jsx";
+import MaterialPickerModal from "./MaterialPickerModal.jsx";
 import TypeBadge from "./ui/TypeBadge.jsx";
 import { C, ASSIGNMENT_TYPES, TIMING_OPTIONS, TIMING_LABELS } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
@@ -8,18 +9,42 @@ import { formatRange } from "../lib/util.js";
 // 커리큘럼 템플릿 만들기/수정 — 여러 단계(숙제/공부/시험/지시사항)를 순서대로 구성해서 저장해두면,
 // 나중에 학생에게 통째로 적용할 수 있습니다(적용 후에는 학생마다 자유롭게 추가/수정/삭제 가능).
 // 순서는 왼쪽의 ⠿ 손잡이를 드래그해서 바꿉니다(숫자를 직접 입력하지 않아도 되도록).
-export default function CurriculumTemplateModal({ data, updateData, template, onClose }) {
+// 교재는 이 템플릿에서 자주 쓸 것들을 미리 몇 개 골라두면("자주 쓰는 교재"), 각 단계에서 매번 타이핑하지 않고
+// 그 목록을 클릭 한 번으로 바로 채울 수 있습니다. 그중 하나를 "기본"으로 지정하면 새 단계에 자동으로 채워져요.
+export default function CurriculumTemplateModal({ data, updateData, template, currentTeacherId, onClose }) {
   const isNew = !template;
   const [name, setName] = useState(template?.name || "");
   const [description, setDescription] = useState(template?.description || "");
   const [steps, setSteps] = useState(template?.steps || []);
+  const [materialShortlist, setMaterialShortlist] = useState(template?.materialShortlist || []);
+  const [defaultMaterial, setDefaultMaterial] = useState(template?.defaultMaterial || "");
+  const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const dragIndexRef = useRef(null);
+
+  function addToShortlist(name) {
+    setMaterialShortlist((prev) => (prev.includes(name) ? prev : [...prev, name]));
+  }
+  function removeFromShortlist(name) {
+    setMaterialShortlist((prev) => prev.filter((m) => m !== name));
+    if (defaultMaterial === name) setDefaultMaterial("");
+  }
+  function toggleDefault(name) {
+    setDefaultMaterial((prev) => (prev === name ? "" : name));
+  }
 
   function addStep() {
     setSteps((prev) => [
       ...prev,
-      { id: "step_" + Date.now() + Math.random().toString(36).slice(2, 6), order: prev.length + 1, type: "공부", material: "", rangeFrom: "", rangeTo: "", timing: "클리닉중" },
+      {
+        id: "step_" + Date.now() + Math.random().toString(36).slice(2, 6),
+        order: prev.length + 1,
+        type: "공부",
+        material: defaultMaterial || "",
+        rangeFrom: "",
+        rangeTo: "",
+        timing: "클리닉중",
+      },
     ]);
   }
   function updateStep(id, patch) {
@@ -45,13 +70,22 @@ export default function CurriculumTemplateModal({ data, updateData, template, on
     updateData((next) => {
       if (!next.curriculumTemplates) next.curriculumTemplates = [];
       if (isNew) {
-        next.curriculumTemplates.push({ id: "curr_" + Date.now(), name: name.trim(), description: description.trim(), steps: cleanedSteps });
+        next.curriculumTemplates.push({
+          id: "curr_" + Date.now(),
+          name: name.trim(),
+          description: description.trim(),
+          steps: cleanedSteps,
+          materialShortlist,
+          defaultMaterial,
+        });
       } else {
         const t = next.curriculumTemplates.find((x) => x.id === template.id);
         if (t) {
           t.name = name.trim();
           t.description = description.trim();
           t.steps = cleanedSteps;
+          t.materialShortlist = materialShortlist;
+          t.defaultMaterial = defaultMaterial;
         }
       }
     });
@@ -83,6 +117,39 @@ export default function CurriculumTemplateModal({ data, updateData, template, on
         placeholder="설명 (선택, 예: 개념 확인 → 연습문제 → 오답 정리 → 단원평가)"
         style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 14 }}
       />
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 6 }}>자주 쓰는 교재</div>
+      <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 8 }}>
+        여기 미리 골라두면 아래 각 단계에서 매번 타이핑하지 않고 클릭 한 번으로 채울 수 있어요. ⭐를 누르면 "기본 교재"로 지정되어 새 단계를 추가할 때 자동으로 채워집니다.
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+        {materialShortlist.map((m) => (
+          <span
+            key={m}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 11.5,
+              border: `1px solid ${defaultMaterial === m ? C.gold : C.line}`,
+              background: defaultMaterial === m ? C.goldSoft : "#fff",
+              borderRadius: 999,
+              padding: "4px 10px",
+            }}
+          >
+            <button onClick={() => toggleDefault(m)} title="기본 교재로 지정" style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, fontSize: 12 }}>
+              {defaultMaterial === m ? "⭐" : "☆"}
+            </button>
+            {m}
+            <button onClick={() => removeFromShortlist(m)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 10 }}>
+              ✕
+            </button>
+          </span>
+        ))}
+        <button onClick={() => setMaterialPickerOpen(true)} style={btnGhostSm}>
+          + 교재 추가
+        </button>
+      </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 8 }}>단계 ({steps.length}) — 왼쪽 ⠿를 드래그해서 순서를 바꿀 수 있어요</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
@@ -147,6 +214,27 @@ export default function CurriculumTemplateModal({ data, updateData, template, on
               placeholder={s.type === "지시사항" ? "지시 내용" : "교재명"}
               style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
             />
+            {s.type !== "지시사항" && materialShortlist.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                {materialShortlist.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => updateStep(s.id, { material: m })}
+                    style={{
+                      border: `1px solid ${s.material === m ? C.accent : C.line}`,
+                      background: s.material === m ? C.accentSoft : "#fff",
+                      color: s.material === m ? C.accentText : C.sub,
+                      borderRadius: 999,
+                      padding: "2px 9px",
+                      fontSize: 10.5,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
             {s.type !== "지시사항" && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: s.type === "시험" ? 6 : 0 }}>
                 <input value={s.rangeFrom} onChange={(e) => updateStep(s.id, { rangeFrom: e.target.value })} placeholder="시작" style={{ ...inputStyle, flex: 1 }} />
@@ -181,6 +269,16 @@ export default function CurriculumTemplateModal({ data, updateData, template, on
       <button onClick={addStep} style={btnGhostSm}>
         + 단계 추가
       </button>
+
+      {materialPickerOpen && (
+        <MaterialPickerModal
+          data={data}
+          updateData={updateData}
+          currentTeacherId={currentTeacherId}
+          onPick={(name) => addToShortlist(name)}
+          onClose={() => setMaterialPickerOpen(false)}
+        />
+      )}
     </Modal>
   );
 }

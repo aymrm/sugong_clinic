@@ -3,13 +3,16 @@ import Modal from "./Modal.jsx";
 import WeekdayPicker from "./ui/WeekdayPicker.jsx";
 import { C, WEEKDAY } from "../lib/theme.js";
 import { inputStyle, btnAccent, btnGhostSm } from "../styles/common.js";
+import { weekOrder } from "../lib/util.js";
 
 // 반에 학생의 요일/시간을 등록하는 팝업.
 // 같은 반이어도 학생마다 다른 요일에 클리닉 하는 경우가 있어서, 이 반에 등록된 클리닉 시간대(반 관리에서
 // 설정)와 학생들이 이미 많이 쓰는 시간을 우선적으로 보여주고 그대로 고르거나, 다른 시간으로 직접 설정할 수 있게 했습니다.
 // (이미 소속된 학생에게 시간대를 "추가"할 때도 같은 팝업을 써서, 한 학생이 같은 반을 여러 요일/시간에 나눠 들을 수도 있어요.)
 export default function AddScheduleSlotModal({ data, course, onPick, onClose }) {
-  const courseSlots = [{ dayOfWeek: course.dayOfWeek, start: course.start, end: course.end }, ...(course.extraTimeSlots || [])];
+  const courseSlots = [{ dayOfWeek: course.dayOfWeek, start: course.start, end: course.end }, ...(course.extraTimeSlots || [])].sort(
+    (a, b) => weekOrder(a.dayOfWeek) - weekOrder(b.dayOfWeek) || a.start.localeCompare(b.start)
+  );
 
   const slots = data.scheduleEntries.filter((e) => e.courseId === course.id && e.recurrence === "weekly");
   const freq = new Map();

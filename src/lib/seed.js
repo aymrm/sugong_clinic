@@ -62,6 +62,9 @@ export function seedState() {
         { id: "step3", order: 3, type: "지시사항", material: "오답 정리 노트 확인해주세요", timing: "퇴실" },
         { id: "step4", order: 4, type: "시험", material: "3단원 단원평가", rangeFrom: "", rangeTo: "", timing: "클리닉중", examDurationMinutes: 40, totalQuestions: 20 },
       ],
+      // 이 템플릿에서 자주 쓰는 교재를 미리 골라두면, 단계를 만들 때마다 타이핑하지 않고 클릭으로 채울 수 있습니다.
+      materialShortlist: ["쎈 수2 3단원", "개념원리 수2 3단원", "3단원 단원평가"],
+      defaultMaterial: "쎈 수2 3단원", // 새 단계를 추가하면 자동으로 채워지는 기본 교재
     },
   ];
   // 반마다 정해둔 교재/숙제 목록 — "반 관리"에서 편집, "학생 관리"에서 골라서 학생에게 추가
