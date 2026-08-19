@@ -23,11 +23,11 @@ export default function HelpModal({ role, onClose }) {
       </div>
 
       {tab === "guide" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 480, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sections.map((sec) => {
             const isOpen = openId === sec.id;
             return (
-              <div key={sec.id} style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
+              <div key={sec.id} style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}>
                 <button
                   onClick={() => setOpenId(isOpen ? null : sec.id)}
                   style={{
@@ -61,10 +61,10 @@ export default function HelpModal({ role, onClose }) {
       )}
 
       {tab === "changelog" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 480, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {CHANGELOG.map((c, i) => (
-            <div key={i} style={{ borderLeft: `2px solid ${C.accent}`, paddingLeft: 12 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <div key={i} style={{ borderLeft: `2px solid ${C.accent}`, paddingLeft: 12, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 10.5, color: C.sub, fontWeight: 600 }}>{c.date}</span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{c.title}</span>
               </div>
