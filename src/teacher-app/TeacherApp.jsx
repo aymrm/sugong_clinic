@@ -8,15 +8,18 @@ import HelpModal from "../components/HelpModal.jsx";
 import { isThreadUnread } from "../lib/chatUtils.js";
 import TeacherTodayView from "./TeacherTodayView.jsx";
 import TeacherAssignView from "./TeacherAssignView.jsx";
+import TeacherCalendarView from "./TeacherCalendarView.jsx";
 import TeacherResultsView from "./TeacherResultsView.jsx";
 import TeacherExamStatsView from "./TeacherExamStatsView.jsx";
 
 // 선생님용 모바일 화면 (관리자용 사이트와는 별개, /teacher 경로).
-// 담당 선생님이 자기 반 기준으로 "오늘 명단 확인 / 할 일 만들기(숙제·공부·시험·지시사항) / 결과 확인 / 시험 통계 / 문의하기"만
-// 가볍게 하도록 만든 화면입니다. 자리 배치·체크리스트 상세 입력 등 클리닉실 현장 운영은 그대로 관리자용 사이트(데스크탑)에서 합니다.
+// 담당 선생님이 자기 반 기준으로 "오늘 명단 확인 / 할 일 만들기(숙제·공부·시험·지시사항) / 달력(여러 학생 한 번에 일정 등록) /
+// 결과 확인 / 시험 통계 / 문의하기"만 가볍게 하도록 만든 화면입니다.
+// 자리 배치·체크리스트 상세 입력 등 클리닉실 현장 운영은 그대로 관리자용 사이트(데스크탑)에서 합니다.
 const TABS = [
   { id: "today", label: "오늘 명단", icon: "🗓️" },
   { id: "assign", label: "할 일 만들기", icon: "📝" },
+  { id: "calendar", label: "달력", icon: "📅" },
   { id: "results", label: "결과 확인", icon: "✅" },
   { id: "examStats", label: "시험 통계", icon: "📊" },
   { id: "chat", label: "문의하기", icon: "💬" },
@@ -101,6 +104,7 @@ export default function TeacherApp({ onSignOut, currentUsername, currentUserId }
           <>
             {tab === "today" && <TeacherTodayView data={data} updateData={updateData} date={date} myCourses={myCourses} currentTeacherId={currentTeacherId} />}
             {tab === "assign" && <TeacherAssignView data={data} updateData={updateData} myCourses={myCourses} currentTeacherId={currentTeacherId} />}
+            {tab === "calendar" && <TeacherCalendarView data={data} updateData={updateData} date={date} myCourses={myCourses} />}
             {tab === "results" && <TeacherResultsView data={data} date={date} myCourses={myCourses} />}
             {tab === "examStats" && <TeacherExamStatsView data={data} myCourses={myCourses} />}
           </>

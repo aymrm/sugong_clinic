@@ -196,7 +196,7 @@ function ChecklistBody({ data, sessionId, updateData }) {
     }
     return (
       <div key={t.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
           <input type="checkbox" checked={t.checked} onChange={(e) => patchTask(t.id, { checked: e.target.checked })} style={{ width: 17, height: 17 }} />
           <span style={{ fontSize: 12, color: C.sub, width: 18 }}>{idx + 1}</span>
           <input
@@ -344,7 +344,7 @@ function ExamTaskRow({ idx, data, session, assignment, onRemove, patchExamAssign
 
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.gold}55`, borderRadius: 10, padding: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <input type="checkbox" checked={checked} onChange={(e) => toggleExamDone(assignment.id, e.target.checked)} style={{ width: 17, height: 17 }} />
         <span style={{ fontSize: 12, color: C.sub, width: 18 }}>{idx + 1}</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "2px 8px" }}>시험</span>
@@ -426,7 +426,7 @@ function HomeworkTaskRow({ idx, assignment, onRemove, patchAssignment, toggleAss
 
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.accent}55`, borderRadius: 10, padding: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <input type="checkbox" checked={checked} onChange={(e) => toggleAssignmentDone(assignment.id, e.target.checked)} style={{ width: 17, height: 17 }} />
         <span style={{ fontSize: 12, color: C.sub, width: 18 }}>{idx + 1}</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: C.accentText, background: C.accentSoft, borderRadius: 999, padding: "2px 8px" }}>숙제</span>
@@ -490,7 +490,7 @@ function InstructionTaskRow({ idx, assignment, onRemove, toggleAssignmentDone })
   const checked = assignment.status === "done";
   return (
     <div style={{ background: C.panel, border: "1px solid #5B4B9E55", borderRadius: 10, padding: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <input type="checkbox" checked={checked} onChange={(e) => toggleAssignmentDone(assignment.id, e.target.checked)} style={{ width: 17, height: 17 }} />
         <span style={{ fontSize: 12, color: C.sub, width: 18 }}>{idx + 1}</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#5B4B9E", background: "#E7E3F5", borderRadius: 999, padding: "2px 8px" }}>지시사항</span>

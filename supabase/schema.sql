@@ -179,11 +179,18 @@ create table if not exists teacher_notes (
   message text not null,
   created_at date not null,
   course_id text references courses(id) on delete set null,
-  student_ids jsonb -- 특정 학생들만 대상으로 하는 그룹 공지면 학생 id 배열, 전체 공지면 null
+  student_ids jsonb, -- 특정 학생들만 대상으로 하는 그룹 공지면 학생 id 배열, 전체 공지면 null
+  -- 학생별로 "확인/완료"했는지 체크할 수 있게(그룹 공지 대상 학생 중 일부만 했을 수 있어서). student_ids에
+  -- 있는 학생이 전부 checked_student_ids에 들어가면 자동으로 "완료된 공지"로 옮겨집니다.
+  checked_student_ids jsonb,
+  -- 특정 학생 대상이 아닌 일반 공지는 체크할 학생이 없어서, 이 플래그로 수동으로 완료 처리합니다.
+  done_manual boolean not null default false
 );
 -- 이미 teacher_notes가 있던 경우(이전 버전 schema.sql을 실행했던 경우)에도 새 컬럼이 안전하게 추가됩니다.
 alter table teacher_notes add column if not exists course_id text references courses(id) on delete set null;
 alter table teacher_notes add column if not exists student_ids jsonb;
+alter table teacher_notes add column if not exists checked_student_ids jsonb;
+alter table teacher_notes add column if not exists done_manual boolean not null default false;
 
 create table if not exists exam_sessions (
   id text primary key,

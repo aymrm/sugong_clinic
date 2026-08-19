@@ -245,9 +245,9 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
 
           <Field label="범위">
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <input value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} placeholder="시작" style={{ ...inputStyle, flex: 1 }} />
+              <input value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} placeholder="시작" style={{ ...inputStyle, width: 80 }} />
               <span style={{ color: C.sub }}>~</span>
-              <input value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} placeholder="끝" style={{ ...inputStyle, flex: 1 }} />
+              <input value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} placeholder="끝" style={{ ...inputStyle, width: 80 }} />
             </div>
           </Field>
 

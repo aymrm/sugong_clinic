@@ -34,6 +34,7 @@ export default function MainView({
 }) {
   const [openPopup, setOpenPopup] = useState(null); // {kind:'timeline'|'seat', id}
   const [curriculumStudent, setCurriculumStudent] = useState(null);
+  const [seatSearchText, setSeatSearchText] = useState(""); // 빈 자리에 학생 배정할 때 이름 검색용
   const [lateEntry, setLateEntry] = useState(null); // {entryId, studentId, courseId, start(원래시간)}
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addMarkerOpen, setAddMarkerOpen] = useState(false);
@@ -49,6 +50,10 @@ export default function MainView({
 
   useEffect(() => {
     function onDocMouseDown(e) {
+      // 시간대별 일정(도착 확인/종료 등) 항목은 이제 바깥을 클릭해도 안 닫혀요 — 자리 배정 등 다른 작업을
+      // 하면서 계속 펼쳐둔 채로 참고할 수 있게, 왼쪽의 토글 버튼을 다시 눌러야만 닫히도록 바꿨습니다.
+      // 좌석 배정 팝업(자리 클릭 시 뜨는 작은 메뉴)은 기존처럼 바깥을 클릭하면 닫혀요.
+      if (!openPopup || openPopup.kind !== "seat") return;
       // 목록이 길어서 스크롤이 생기면, 스크롤바 자체를 클릭(마우스가 없어 트랙 클릭으로 내리는 경우 등)했을 때
       // e.target이 스크롤 컨테이너 자기 자신이 되는데, 이게 popupRef 바깥이라고 판단되어 열려있던 토글이
       // 바로 닫혀버리는 문제가 있었습니다. 스크롤 컨테이너 자체를 직접 클릭한 경우는 무시합니다.
@@ -59,7 +64,7 @@ export default function MainView({
     }
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, []);
+  }, [openPopup]);
 
   // ── 시간대별 일정(Todo): (수업, 시간) 조합으로 그룹 — 당일 추가된 학생의 커스텀 시간도 반영 ──
   // 시간 단위로만 묶습니다(반마다 따로 나오면 반 개수가 늘어날수록 목록이 너무 길어지는 문제가 있었어요).
@@ -636,45 +641,65 @@ export default function MainView({
                   )}
                 </div>
 
-                {isPopupOpen && (
-                  <Popover ref={popupRef} anchorEl={openPopup.anchorEl} width={230}>
-                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>#{seat.label} 자리에 학생 배정</div>
-                    {notSeated.length === 0 && <div style={{ fontSize: 12, color: C.sub }}>배정할 수 있는 학생이 없습니다.</div>}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                      {notSeated.map((p) => {
-                        const student = data.students.find((st) => st.id === p.studentId);
-                        const course = data.courses.find((c) => c.id === p.courseId);
-                        return (
-                          <div key={p.studentId + p.courseId} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <button
-                              onClick={() => {
-                                onAssignSeat(p.studentId, p.courseId, seat.id);
-                                setOpenPopup(null);
-                              }}
-                              style={{ flex: 1, textAlign: "left", border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
-                            >
-                              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{student?.name}</div>
-                              <div style={{ fontSize: 10.5, color: C.sub, display: "flex", alignItems: "center", gap: 5 }}>
-                                {course?.name}
-                                <LateBadge entry={p} />
+                {isPopupOpen &&
+                  (() => {
+                    const q = seatSearchText.trim();
+                    const filteredNotSeated = notSeated.filter((p) => {
+                      if (!q) return true;
+                      const student = data.students.find((st) => st.id === p.studentId);
+                      return student?.name?.includes(q);
+                    });
+                    return (
+                      <Popover ref={popupRef} anchorEl={openPopup.anchorEl} width={230}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>#{seat.label} 자리에 학생 배정</div>
+                        {notSeated.length > 5 && (
+                          <input
+                            value={seatSearchText}
+                            onChange={(e) => setSeatSearchText(e.target.value)}
+                            placeholder="이름으로 검색"
+                            autoFocus
+                            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 8 }}
+                          />
+                        )}
+                        {notSeated.length === 0 && <div style={{ fontSize: 12, color: C.sub }}>배정할 수 있는 학생이 없습니다.</div>}
+                        {notSeated.length > 0 && filteredNotSeated.length === 0 && <div style={{ fontSize: 12, color: C.sub }}>검색 결과가 없어요.</div>}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                          {filteredNotSeated.map((p) => {
+                            const student = data.students.find((st) => st.id === p.studentId);
+                            const course = data.courses.find((c) => c.id === p.courseId);
+                            return (
+                              <div key={p.studentId + p.courseId} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <button
+                                  onClick={() => {
+                                    onAssignSeat(p.studentId, p.courseId, seat.id);
+                                    setSeatSearchText("");
+                                    setOpenPopup(null);
+                                  }}
+                                  style={{ flex: 1, textAlign: "left", border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
+                                >
+                                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{student?.name}</div>
+                                  <div style={{ fontSize: 10.5, color: C.sub, display: "flex", alignItems: "center", gap: 5 }}>
+                                    {course?.name}
+                                    <LateBadge entry={p} />
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurriculumStudent(student);
+                                  }}
+                                  title="커리큘럼/지난 기록 보기"
+                                  style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 7, padding: "6px 7px", fontSize: 10.5, color: C.sub, cursor: "pointer", flexShrink: 0 }}
+                                >
+                                  커리큘럼
+                                </button>
                               </div>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCurriculumStudent(student);
-                              }}
-                              title="커리큘럼/지난 기록 보기"
-                              style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 7, padding: "6px 7px", fontSize: 10.5, color: C.sub, cursor: "pointer", flexShrink: 0 }}
-                            >
-                              커리큘럼
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Popover>
-                )}
+                            );
+                          })}
+                        </div>
+                      </Popover>
+                    );
+                  })()}
               </div>
             );
           })}
@@ -934,7 +959,9 @@ function groupEntriesByTeacher(data, entries) {
 
 // 선생님 1명 분 하위 그룹 — 기본은 펼쳐져 있고, 눌러서 접었다 펼 수 있습니다(반이 많아 목록이 길어질 때 대비).
 function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemoveToday, onOpenCurriculum, onSetLate }) {
-  const [open, setOpen] = useState(true);
+  // 시간대별 일정을 열자마자 선생님별로 다 펼쳐져 있으면 목록이 너무 길어지는 문제가 있어서,
+  // 기본은 접힌 상태로 시작하고 필요한 선생님 것만 눌러서 펼치도록 바꿨습니다.
+  const [open, setOpen] = useState(false);
   const totalCount = group.courseGroups.reduce((sum, cg) => sum + cg.entries.length, 0);
 
   return (

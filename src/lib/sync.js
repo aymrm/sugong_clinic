@@ -222,6 +222,8 @@ const TABLE_CONFIGS = [
       created_at: n.createdAt,
       course_id: n.courseId || null,
       student_ids: n.studentIds && n.studentIds.length ? n.studentIds : null,
+      checked_student_ids: n.checkedStudentIds && n.checkedStudentIds.length ? n.checkedStudentIds : null,
+      done_manual: !!n.doneManual,
     }),
     fromRow: (r) => ({
       id: r.id,
@@ -230,6 +232,8 @@ const TABLE_CONFIGS = [
       createdAt: r.created_at,
       courseId: r.course_id || undefined,
       studentIds: r.student_ids || undefined,
+      checkedStudentIds: r.checked_student_ids || undefined,
+      doneManual: !!r.done_manual,
     }),
   },
   {

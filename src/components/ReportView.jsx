@@ -23,36 +23,49 @@ export default function ReportView({ data }) {
       const course = data.courses.find((c) => c.id === sess.courseId);
       if (teacherId !== "all" && course?.teacherId !== teacherId) return;
       const student = data.students.find((s) => s.id === sess.studentId);
-      const tasks = sess.tasks && sess.tasks.length ? sess.tasks : [null];
-      tasks.forEach((t) => {
-        const assignment = t?.assignmentId ? data.studentAssignments.find((a) => a.id === t.assignmentId) : null;
-        let score = "-";
-        if (assignment?.type === "시험") {
-          score = `${assignment.correctCount ?? "-"}/${assignment.totalQuestions ?? "-"}`;
-          if (assignment.altTotal !== undefined) score += ` (${assignment.altScore ?? "-"}/${assignment.altTotal}점)`;
-        }
-        const base = {
-          date: sess.date,
-          name: student?.name || "",
-          course: course?.name || "",
-          teacher: sess.teacher,
-          planned: `${sess.plannedStart}~${sess.plannedEnd}`,
-          actual: `${sess.arrivalTime || "-"}~${sess.endTime || "-"}`,
-          seat: sess.seatSnapshot ? `#${sess.seatSnapshot.label}` : "-",
-          material: t?.material || "-",
-          range: t ? t.actualRange || formatRange(t.rangeFrom, t.rangeTo) || "-" : "-",
-          score,
-          note: sess.note || "",
-        };
-        rows.push(base);
+      const tasks = sess.tasks || [];
+
+      // 학생 한 명의 그날 기록은 여러 줄(row)로 쪼개지 않고, 항목이 여러 개면 "과목/범위"·"성적" 칸
+      // 안에서 줄바꿈으로 나열합니다 — 표를 훑어볼 때 한 학생 기록이 여러 줄에 흩어져 보여서
+      // 오해를 살 수 있었던 문제를 없애기 위해서예요. 칸이 세로로 길어지는 건 괜찮습니다.
+      const subjectLines = [];
+      const scoreLines = [];
+      if (tasks.length === 0) {
+        subjectLines.push("-");
+        scoreLines.push("-");
+      } else {
+        tasks.forEach((t) => {
+          const assignment = t.assignmentId ? data.studentAssignments.find((a) => a.id === t.assignmentId) : null;
+          const range = t.actualRange || formatRange(t.rangeFrom, t.rangeTo) || "";
+          subjectLines.push(`${t.checked ? "✓ " : "☐ "}${t.material || "-"}${range ? " " + range : ""}`);
+          if (assignment?.type === "시험") {
+            let score = `${assignment.correctCount ?? "-"}/${assignment.totalQuestions ?? "-"}`;
+            if (assignment.altTotal !== undefined) score += ` (${assignment.altScore ?? "-"}/${assignment.altTotal}점)`;
+            scoreLines.push(score);
+          } else {
+            scoreLines.push("-");
+          }
+        });
+      }
+
+      rows.push({
+        date: sess.date,
+        name: student?.name || "",
+        course: course?.name || "",
+        teacher: sess.teacher,
+        planned: `${sess.plannedStart}~${sess.plannedEnd}`,
+        actual: `${sess.arrivalTime || "-"}~${sess.endTime || "-"}`,
+        seat: sess.seatSnapshot ? `#${sess.seatSnapshot.label}` : "-",
+        subject: subjectLines.join("\n"),
+        score: scoreLines.join("\n"),
+        note: sess.note || "",
       });
     });
 
   function rowToCells(r) {
-    const subject = `${r.material} ${r.range}`;
     return teacherId === "all"
-      ? [r.date, r.name, r.course, r.teacher, r.planned, r.actual, r.seat, subject, r.score, r.note]
-      : [r.date, r.name, r.course, r.planned, r.actual, r.seat, subject, r.score, r.note];
+      ? [r.date, r.name, r.course, r.teacher, r.planned, r.actual, r.seat, r.subject, r.score, r.note]
+      : [r.date, r.name, r.course, r.planned, r.actual, r.seat, r.subject, r.score, r.note];
   }
 
   function fileBaseName() {
@@ -125,7 +138,7 @@ export default function ReportView({ data }) {
             {rows.map((r, i) => (
               <tr key={i} style={{ borderTop: `1px solid ${C.line}` }}>
                 {rowToCells(r).map((cell, ci) => (
-                  <td key={ci} style={tdStyle}>
+                  <td key={ci} style={{ ...tdStyle, whiteSpace: "pre-line", verticalAlign: "top" }}>
                     {cell}
                   </td>
                 ))}

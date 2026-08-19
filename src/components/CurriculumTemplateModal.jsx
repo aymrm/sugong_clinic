@@ -236,9 +236,9 @@ export default function CurriculumTemplateModal({ data, updateData, template, cu
             )}
             {s.type !== "지시사항" && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: s.type === "시험" ? 6 : 0 }}>
-                <input value={s.rangeFrom} onChange={(e) => updateStep(s.id, { rangeFrom: e.target.value })} placeholder="시작" style={{ ...inputStyle, flex: 1 }} />
+                <input value={s.rangeFrom} onChange={(e) => updateStep(s.id, { rangeFrom: e.target.value })} placeholder="시작" style={{ ...inputStyle, width: 80 }} />
                 <span style={{ color: C.sub, fontSize: 12 }}>~</span>
-                <input value={s.rangeTo} onChange={(e) => updateStep(s.id, { rangeTo: e.target.value })} placeholder="끝" style={{ ...inputStyle, flex: 1 }} />
+                <input value={s.rangeTo} onChange={(e) => updateStep(s.id, { rangeTo: e.target.value })} placeholder="끝" style={{ ...inputStyle, width: 80 }} />
               </div>
             )}
             {s.type === "시험" && (

@@ -18,8 +18,14 @@ export function exportTableAsImage({ title, subtitle, headers, rows, filename })
     let max = measure.measureText(h).width;
     measure.font = font;
     rows.forEach((r) => {
-      const w = measure.measureText(String(r[i] ?? "")).width;
-      if (w > max) max = w;
+      // 셀 안에 명시적 줄바꿈(\n)이 있으면(예: 학생 한 명의 여러 학습 항목을 줄로 나열) 전체를 이어붙인
+      // 채로 측정하면 안 되고, 각 줄을 따로 재서 그중 제일 긴 줄 기준으로 폭을 잡아야 합니다.
+      String(r[i] ?? "")
+        .split("\n")
+        .forEach((line) => {
+          const w = measure.measureText(line).width;
+          if (w > max) max = w;
+        });
     });
     return Math.min(Math.max(max + padX * 2, minColWidth), maxColWidth);
   });
@@ -149,8 +155,20 @@ function truncateToWidth(ctx, text, maxWidth) {
 }
 
 // 긴 텍스트를 칸 너비에 맞게 여러 줄로 쪼갭니다(자르지 않고 전부 보존).
-// 공백 기준으로 먼저 나누고, 공백 없이 긴 단어(또는 한국어처럼 띄어쓰기가 적은 문장)는 글자 단위로 추가로 쪼갭니다.
+// 먼저 명시적 줄바꿈(\n — 예: 학생 한 명의 여러 학습 항목을 줄로 나열한 경우)으로 나누고,
+// 그다음 각 줄을 공백 기준으로 폭에 맞게 자동 줄바꿈합니다. 공백 없이 긴 단어(또는 한국어처럼
+// 띄어쓰기가 적은 문장)는 글자 단위로 추가로 쪼갭니다.
 function wrapToWidth(ctx, text, maxWidth) {
+  if (text === "") return [""];
+  const hardLines = text.split("\n");
+  const result = [];
+  hardLines.forEach((hardLine) => {
+    result.push(...wrapSingleLine(ctx, hardLine, maxWidth));
+  });
+  return result.length ? result : [""];
+}
+
+function wrapSingleLine(ctx, text, maxWidth) {
   if (text === "") return [""];
   const words = text.split(/(\s+)/).filter((w) => w !== "");
   const rawLines = [];

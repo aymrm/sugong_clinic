@@ -105,7 +105,7 @@ export default function AdHocAddModal({ data, rosterPairs, onAdd, onClose }) {
             <input value={it.material} onChange={(e) => updateItem(i, { material: e.target.value })} placeholder="교재명" style={{ ...inputStyle, width: 130 }} />
             <input value={it.rangeFrom} onChange={(e) => updateItem(i, { rangeFrom: e.target.value })} placeholder="시작" style={{ ...inputStyle, width: 70 }} />
             <span style={{ color: C.sub, fontSize: 12 }}>~</span>
-            <input value={it.rangeTo} onChange={(e) => updateItem(i, { rangeTo: e.target.value })} placeholder="끝" style={{ ...inputStyle, flex: 1 }} />
+            <input value={it.rangeTo} onChange={(e) => updateItem(i, { rangeTo: e.target.value })} placeholder="끝" style={{ ...inputStyle, width: 70 }} />
             <button onClick={() => removeRow(i)} style={{ border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 12 }}>
               삭제
             </button>
