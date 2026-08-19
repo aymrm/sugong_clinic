@@ -53,17 +53,18 @@ export default function MainView({
   }, []);
 
   // ── 시간대별 일정(Todo): (수업, 시간) 조합으로 그룹 — 당일 추가된 학생의 커스텀 시간도 반영 ──
+  // 시간 단위로만 묶습니다(반마다 따로 나오면 반 개수가 늘어날수록 목록이 너무 길어지는 문제가 있었어요).
+  // 같은 시간에 여러 반이 있으면 한 항목 안에서 선생님별로 하위 그룹으로 나눠서 보여줍니다(TimelineItem 내부에서 처리).
   const arrivalBuckets = new Map();
   const checkoutBuckets = new Map();
   rosterPairs.forEach((p) => {
     const course = data.courses.find((c) => c.id === p.courseId);
     if (!course) return;
-    const aKey = course.id + "|" + p.start;
-    const cKey = course.id + "|" + p.end;
-    if (!arrivalBuckets.has(aKey)) arrivalBuckets.set(aKey, { id: "a-" + aKey, time: p.start, type: "arrival", course, entries: [] });
-    arrivalBuckets.get(aKey).entries.push(p);
-    if (!checkoutBuckets.has(cKey)) checkoutBuckets.set(cKey, { id: "c-" + cKey, time: p.end, type: "checkout", course, entries: [] });
-    checkoutBuckets.get(cKey).entries.push(p);
+    const entry = { ...p, course };
+    if (!arrivalBuckets.has(p.start)) arrivalBuckets.set(p.start, { id: "a-" + p.start, time: p.start, type: "arrival", entries: [] });
+    arrivalBuckets.get(p.start).entries.push(entry);
+    if (!checkoutBuckets.has(p.end)) checkoutBuckets.set(p.end, { id: "c-" + p.end, time: p.end, type: "checkout", entries: [] });
+    checkoutBuckets.get(p.end).entries.push(entry);
   });
 
   // ── 시험 종료 일정: 시험시간(분)에 따라 참가자별 종료 시각을 계산해서 같은 일정 목록에 합침 ──
@@ -826,15 +827,19 @@ function TimelineGroup({ title, events, defaultOpen, renderEvent, emptyText, acc
   );
 }
 
-/* ── 도착 확인 / 종료·채점 일정 항목 — 클릭하면 바로 아래로 펼쳐짐(목록 안이라 스크롤로 자연스럽게 처리됨) ── */
+/* ── 도착 확인 / 종료·채점 일정 항목 — 시간 단위로 묶고, 그 안을 선생님별로 접었다 펼 수 있게 구성 ── */
 function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openChecklist, findSession, onRemoveToday, onOpenCurriculum }) {
   const isOpen = openPopup && openPopup.kind === "timeline" && openPopup.id === ev.id;
   const allSeated =
     ev.type === "arrival" &&
     ev.entries.every((p) => {
-      const s = findSession(p.studentId, ev.course.id);
+      const s = findSession(p.studentId, p.course.id);
       return s && (s.seatId || s.status === "완료");
     });
+
+  // 같은 시간에 여러 반이 섞여있을 수 있어서, 선생님별로 묶어서 보여줍니다.
+  const teacherGroups = groupEntriesByTeacher(data, ev.entries);
+
   return (
     <div>
       <button
@@ -847,59 +852,123 @@ function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openCheckli
           <span style={{ fontSize: 12, color: C.sub }}>{ev.type === "arrival" ? "도착 확인" : "종료 · 채점"}</span>
           {allSeated && <CheckBadge />}
         </div>
-        <div style={{ fontSize: 12.5, marginTop: 3, fontWeight: 600 }}>
-          {ev.course.name} <span style={{ color: C.sub, fontWeight: 400 }}>· {teacherName(data, ev.course.teacherId)}</span>
+        <div style={{ fontSize: 11.5, color: C.sub, marginTop: 3 }}>
+          {ev.entries.length}명 · 선생님 {teacherGroups.length}명
         </div>
-        <div style={{ fontSize: 11.5, color: C.sub, marginTop: 2 }}>{ev.entries.length}명</div>
       </button>
 
       {isOpen && (
-        <div ref={popupRef} style={{ marginTop: 6, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12, boxShadow: "0 3px 10px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-            {ev.time} · {ev.course.name} {ev.type === "arrival" ? "도착 대상" : "종료/채점 대상"}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-            {ev.entries.map((p) => {
-              const student = data.students.find((s) => s.id === p.studentId);
-              const sess = findSession(p.studentId, ev.course.id);
-              const hasCondition = ev.type === "checkout" && sess?.dismissalMode && sess.dismissalMode !== "time";
-              return (
-                <div key={p.entryId} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => onOpenCurriculum(student)}
-                    title="커리큘럼/지난 기록 보기"
-                    style={{ border: "none", background: "transparent", padding: 0, font: "inherit", fontSize: 12.5, fontWeight: 600, width: 70, textAlign: "left", cursor: "pointer", textDecoration: "underline", textDecorationColor: C.line }}
-                  >
-                    {student?.name}
-                  </button>
-                  <StatusPill status={sess?.status || "미배정"} />
-                  {hasCondition && (
-                    <span
-                      title={sess.dismissalCondition}
-                      style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 6px" }}
-                    >
-                      {sess.conditionMet ? "조건충족✓" : "조건부"}
-                    </span>
-                  )}
-                  <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                    {sess && (
-                      <button onClick={() => openChecklist(sess.id)} style={btnGhostSm}>
-                        체크리스트
-                      </button>
-                    )}
-                    <button onClick={() => onRemoveToday(p.entryId)} style={btnWarnGhostSm}>
-                      결석
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div ref={popupRef} style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
+          {teacherGroups.map((tg) => (
+            <TeacherSubGroup
+              key={tg.teacherId}
+              group={tg}
+              type={ev.type}
+              data={data}
+              findSession={findSession}
+              openChecklist={openChecklist}
+              onRemoveToday={onRemoveToday}
+              onOpenCurriculum={onOpenCurriculum}
+            />
+          ))}
           {ev.type === "arrival" && (
-            <div style={{ fontSize: 10.5, color: C.sub, marginTop: 8 }}>
+            <div style={{ fontSize: 10.5, color: C.sub, padding: "0 2px" }}>
               자리를 배정하면 자동으로 출석 처리됩니다. 이미 퇴실한 학생도 여기서 체크리스트로 바로 들어갈 수 있어요.
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 도착/종료 목록 하나(entries, {studentId, courseId, entryId, start, end, course} 배열)를 선생님별로 묶습니다.
+// 같은 선생님이 그 시간에 반을 여러 개 담당하고 있으면 반별로도 한 번 더 나눠서 표시해요.
+function groupEntriesByTeacher(data, entries) {
+  const map = new Map();
+  entries.forEach((p) => {
+    const teacherId = p.course.teacherId || "__none__";
+    if (!map.has(teacherId)) map.set(teacherId, { teacherId, teacherName: teacherName(data, p.course.teacherId), courseGroups: new Map() });
+    const tg = map.get(teacherId);
+    if (!tg.courseGroups.has(p.course.id)) tg.courseGroups.set(p.course.id, { course: p.course, entries: [] });
+    tg.courseGroups.get(p.course.id).entries.push(p);
+  });
+  return [...map.values()]
+    .map((tg) => ({ ...tg, courseGroups: [...tg.courseGroups.values()] }))
+    .sort((a, b) => a.teacherName.localeCompare(b.teacherName, "ko"));
+}
+
+// 선생님 1명 분 하위 그룹 — 기본은 펼쳐져 있고, 눌러서 접었다 펼 수 있습니다(반이 많아 목록이 길어질 때 대비).
+function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemoveToday, onOpenCurriculum }) {
+  const [open, setOpen] = useState(true);
+  const totalCount = group.courseGroups.reduce((sum, cg) => sum + cg.entries.length, 0);
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", border: "none", background: C.bg, cursor: "pointer" }}
+      >
+        <span style={{ fontSize: 10, color: C.sub, width: 12 }}>{open ? "▾" : "▸"}</span>
+        <span style={{ fontSize: 12, fontWeight: 700 }}>{group.teacherName}</span>
+        <span style={{ fontSize: 11, color: C.sub, marginLeft: "auto" }}>{totalCount}명</span>
+      </button>
+      {open && (
+        <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+          {group.courseGroups.map((cg) => (
+            <div key={cg.course.id}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.sub, marginBottom: 6 }}>{cg.course.name}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {cg.entries.map((p) => {
+                  const student = data.students.find((s) => s.id === p.studentId);
+                  const sess = findSession(p.studentId, cg.course.id);
+                  const hasCondition = type === "checkout" && sess?.dismissalMode && sess.dismissalMode !== "time";
+                  return (
+                    <div key={p.entryId} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => onOpenCurriculum(student)}
+                        title="커리큘럼/지난 기록 보기"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          padding: 0,
+                          font: "inherit",
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          width: 70,
+                          textAlign: "left",
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                          textDecorationColor: C.line,
+                        }}
+                      >
+                        {student?.name}
+                      </button>
+                      <StatusPill status={sess?.status || "미배정"} />
+                      {hasCondition && (
+                        <span
+                          title={sess.dismissalCondition}
+                          style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 6px" }}
+                        >
+                          {sess.conditionMet ? "조건충족✓" : "조건부"}
+                        </span>
+                      )}
+                      <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                        {sess && (
+                          <button onClick={() => openChecklist(sess.id)} style={btnGhostSm}>
+                            체크리스트
+                          </button>
+                        )}
+                        <button onClick={() => onRemoveToday(p.entryId)} style={btnWarnGhostSm}>
+                          결석
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

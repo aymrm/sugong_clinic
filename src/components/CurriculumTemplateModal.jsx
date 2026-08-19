@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import Modal from "./Modal.jsx";
 import MaterialPickerModal from "./MaterialPickerModal.jsx";
 import TypeBadge from "./ui/TypeBadge.jsx";
-import { C, ASSIGNMENT_TYPES, TIMING_OPTIONS, TIMING_LABELS } from "../lib/theme.js";
+import { C, ASSIGNMENT_TYPES } from "../lib/theme.js";
 import { inputStyle, selectStyle, btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
 import { formatRange } from "../lib/util.js";
 
@@ -11,6 +11,9 @@ import { formatRange } from "../lib/util.js";
 // 순서는 왼쪽의 ⠿ 손잡이를 드래그해서 바꿉니다(숫자를 직접 입력하지 않아도 되도록).
 // 교재는 이 템플릿에서 자주 쓸 것들을 미리 몇 개 골라두면("자주 쓰는 교재"), 각 단계에서 매번 타이핑하지 않고
 // 그 목록을 클릭 한 번으로 바로 채울 수 있습니다. 그중 하나를 "기본"으로 지정하면 새 단계에 자동으로 채워져요.
+// 입실/클리닉중/퇴실 같은 타이밍 구분은 여기서는 다루지 않습니다 — 템플릿은 미리 정해둔 학습 내용이라
+// 사실상 전부 "클리닉 중"에 해당하고, "입실하면 숙제 확인해주세요" 같은 지시는 그날그날 상황에 따라 다르므로
+// 커리큘럼이 아니라 "할 일 만들기"(당일)에서 그때그때 지정하는 게 맞습니다.
 export default function CurriculumTemplateModal({ data, updateData, template, currentTeacherId, onClose }) {
   const isNew = !template;
   const [name, setName] = useState(template?.name || "");
@@ -43,7 +46,6 @@ export default function CurriculumTemplateModal({ data, updateData, template, cu
         material: defaultMaterial || "",
         rangeFrom: "",
         rangeTo: "",
-        timing: "클리닉중",
       },
     ]);
   }
@@ -151,7 +153,11 @@ export default function CurriculumTemplateModal({ data, updateData, template, cu
         </button>
       </div>
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 8 }}>단계 ({steps.length}) — 왼쪽 ⠿를 드래그해서 순서를 바꿀 수 있어요</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 4 }}>단계 ({steps.length}) — 왼쪽 ⠿를 드래그해서 순서를 바꿀 수 있어요</div>
+      <div style={{ fontSize: 10.5, color: C.sub, marginBottom: 8 }}>
+        여기 적는 단계들은 전부 "클리닉 중"에 진행하는 학습 내용이에요. "입실하면 숙제 확인해주세요"처럼 그날그날 달라지는 지시는 여기가 아니라
+        "할 일 만들기"(당일)에서 입실/클리닉중/퇴실을 지정해서 그때그때 넣어주세요.
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {steps.map((s, i) => (
           <div
@@ -194,13 +200,6 @@ export default function CurriculumTemplateModal({ data, updateData, template, cu
                 {ASSIGNMENT_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
-                  </option>
-                ))}
-              </select>
-              <select value={s.timing} onChange={(e) => updateStep(s.id, { timing: e.target.value })} style={selectStyle}>
-                {TIMING_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {TIMING_LABELS[t]}
                   </option>
                 ))}
               </select>

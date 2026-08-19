@@ -120,7 +120,10 @@ create table if not exists student_assignments (
   is_backlog boolean not null default false,
   -- 커리큘럼 템플릿에서 적용되어 생긴 항목이면 어떤 템플릿에서 왔는지 표시(이름은 템플릿이 나중에 지워져도 남아있도록 복사해둠).
   curriculum_template_id text,
-  curriculum_template_name text
+  curriculum_template_name text,
+  -- 숙제(type='숙제')를 어떻게 처리할지: 'check_only'(가져왔는지 확인만, 보통 입실 시) |
+  -- 'redo_if_not_done'(안 해왔으면 클리닉 중에 하도록 — timing이 '클리닉중'으로 자동 지정됨).
+  homework_follow_up text
 );
 alter table student_assignments add column if not exists timing text default '클리닉중';
 alter table student_assignments add column if not exists priority int;
@@ -136,6 +139,7 @@ alter table student_assignments add column if not exists scheduled_date date;
 alter table student_assignments add column if not exists is_backlog boolean not null default false;
 alter table student_assignments add column if not exists curriculum_template_id text;
 alter table student_assignments add column if not exists curriculum_template_name text;
+alter table student_assignments add column if not exists homework_follow_up text;
 
 -- 커리큘럼 템플릿: 여러 단계(숙제/공부/시험/지시사항)로 이루어진 재사용 가능한 커리큘럼을 미리 만들어두고
 -- 학생에게 적용하면, steps 각각이 그 학생의 studentAssignments로 복사되어 생성됩니다(적용 후에는 학생마다
@@ -153,6 +157,21 @@ create table if not exists curriculum_templates (
 );
 alter table curriculum_templates add column if not exists material_shortlist jsonb;
 alter table curriculum_templates add column if not exists default_material text;
+
+-- 담당 선생님/클리닉 선생님이 관리자에게 보내는 문의(기능 질문, 개선 요청 등) 채팅.
+-- thread_id는 문의를 시작한 스태프(관리자가 아닌 사람)의 teachers.id — 관리자는 여러 명일 수 있어서
+-- 특정 관리자 한 명이 아니라 "관리자 전체"가 공유하는 받은편지함 구조입니다(고객센터 방식).
+-- 안 읽음 표시는 별도 컬럼 없이, 화면에서 "그 스레드의 마지막 메시지가 상대방이 보낸 것인지"로 계산합니다.
+create table if not exists chat_messages (
+  id text primary key,
+  thread_id text not null,
+  sender_id text not null,
+  sender_name text not null,
+  sender_role text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists chat_messages_thread_idx on chat_messages (thread_id, created_at);
 
 create table if not exists teacher_notes (
   id text primary key,
@@ -380,4 +399,27 @@ begin
       t
     );
   end loop;
+end $$;
+
+-- chat_messages는 일반 테이블들과 달리 "온보딩된 사람이면 전체 접근"을 쓰지 않습니다 — 그러면 다른 사람의
+-- 문의 내용까지 다 보이게 되어서(문의 내용이 사적일 수 있음), 자기 스레드이거나 관리자일 때만 접근하도록 따로 둡니다.
+alter table chat_messages enable row level security;
+drop policy if exists "chat select own or admin" on chat_messages;
+drop policy if exists "chat insert own or admin" on chat_messages;
+
+create policy "chat select own or admin" on chat_messages for select using (
+  is_admin() or thread_id = (select id from teachers where auth_user_id = auth.uid())
+);
+create policy "chat insert own or admin" on chat_messages for insert with check (
+  is_admin() or thread_id = (select id from teachers where auth_user_id = auth.uid())
+);
+
+-- 채팅이 새로고침 없이 실시간으로 오가도록 Realtime을 켭니다(이미 켜져 있으면 무시됨).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'chat_messages'
+  ) then
+    alter publication supabase_realtime add table chat_messages;
+  end if;
 end $$;

@@ -423,6 +423,11 @@ function HomeworkTaskRow({ idx, assignment, onRemove, patchAssignment, toggleAss
         <input type="checkbox" checked={checked} onChange={(e) => toggleAssignmentDone(assignment.id, e.target.checked)} style={{ width: 17, height: 17 }} />
         <span style={{ fontSize: 12, color: C.sub, width: 18 }}>{idx + 1}</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: C.accentText, background: C.accentSoft, borderRadius: 999, padding: "2px 8px" }}>숙제</span>
+        {assignment.homeworkFollowUp === "redo_if_not_done" && (
+          <span title="안 해왔으면 클리닉 중에 진행" style={{ fontSize: 9.5, fontWeight: 700, color: C.warn, background: C.warnSoft, borderRadius: 999, padding: "2px 7px" }}>
+            미완료 시 클리닉중 보충
+          </span>
+        )}
         <span style={{ fontWeight: 700, fontSize: 13, textDecoration: checked ? "line-through" : "none", color: checked ? C.sub : C.ink }}>{assignment.material}</span>
         <span style={{ fontSize: 12.5, color: C.sub }}>{formatRange(assignment.rangeFrom, assignment.rangeTo)}</span>
         {assignment.dueDate && (

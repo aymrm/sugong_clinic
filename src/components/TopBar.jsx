@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { C, WEEKDAY, ROLE_LABELS } from "../lib/theme.js";
+import HelpModal from "./HelpModal.jsx";
 
 const TABS = [
   { id: "main", label: "오늘의 클리닉" },
@@ -6,9 +8,11 @@ const TABS = [
   { id: "students", label: "학생 관리" },
   { id: "teachers", label: "반 관리", adminOnly: true },
   { id: "report", label: "리포트" },
+  { id: "inbox", label: "문의함", adminOnly: true },
 ];
 
-export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentUsername, role }) {
+export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentUsername, role, hasUnreadChat }) {
+  const [helpOpen, setHelpOpen] = useState(false);
   const visibleTabs = TABS.filter((it) => !it.adminOnly || role === "admin");
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.line}`, position: "sticky", top: 0, zIndex: 30 }}>
@@ -20,6 +24,7 @@ export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentU
               key={it.id}
               onClick={() => setTab(it.id)}
               style={{
+                position: "relative",
                 padding: "7px 14px",
                 borderRadius: 8,
                 border: "none",
@@ -31,10 +36,31 @@ export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentU
               }}
             >
               {it.label}
+              {it.id === "inbox" && hasUnreadChat && (
+                <span style={{ position: "absolute", top: 4, right: 6, width: 7, height: 7, borderRadius: 999, background: C.warn }} />
+              )}
             </button>
           ))}
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setHelpOpen(true)}
+            title="사용 안내 · 업데이트 내역"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: `1px solid ${C.line}`,
+              background: "#fff",
+              color: C.sub,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            ?
+          </button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 12.5, color: C.sub }}>날짜</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ border: `1px solid ${C.line}`, borderRadius: 6, padding: "5px 8px", fontSize: 13 }} />
@@ -58,6 +84,7 @@ export default function TopBar({ tab, setTab, date, setDate, onSignOut, currentU
           )}
         </div>
       </div>
+      {helpOpen && <HelpModal role={role} onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

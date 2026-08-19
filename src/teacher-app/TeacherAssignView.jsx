@@ -22,6 +22,8 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [homeworkFollowUp, setHomeworkFollowUp] = useState("check_only"); // 'check_only' | 'redo_if_not_done'
+  const [homeworkPriorityPref, setHomeworkPriorityPref] = useState("last"); // 'first' | 'last' — redo_if_not_done일 때만 의미 있음
   const [isMathflat, setIsMathflat] = useState(false);
   const [mathflatFollowUp, setMathflatFollowUp] = useState("none");
   const [mathflatNote, setMathflatNote] = useState("");
@@ -49,12 +51,20 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
     if (studentIds.length === 0) return;
     if (isInstruction && !instructionText.trim()) return;
     if (!isInstruction && !material.trim() && !rangeFrom.trim() && !rangeTo.trim()) return;
+    // 숙제는 "가져왔는지 확인만"이면 입실 시 확인, "안 해왔으면 클리닉 중에"면 클리닉중으로 자동 배정됩니다.
+    // 클리닉중으로 갈 때는 기존 클리닉중 항목(시험 등)보다 먼저 할지 나중에 할지도 반영해요.
+    const isHomework = type === "숙제";
+    const effectiveTiming = isHomework ? (homeworkFollowUp === "redo_if_not_done" ? "클리닉중" : "입실") : timing;
+    const priorityPref = isHomework && homeworkFollowUp === "redo_if_not_done" ? homeworkPriorityPref : "last";
     updateData((next) => {
       studentIds.forEach((studentId, i) => {
-        // 순서를 직접 입력받지 않고, 그 학생의 같은 타이밍 그룹 맨 뒤에 자동으로 붙입니다.
+        // 순서를 직접 입력받지 않고, 그 학생의 같은 타이밍 그룹 맨 앞/뒤에 자동으로 붙입니다.
         // 세세한 순서 조정은 학생 커리큘럼 화면에서 드래그로 하면 돼요.
-        const samePriority = next.studentAssignments.filter((a) => a.studentId === studentId && a.timing === timing).map((a) => a.priority ?? 0);
-        const nextPriority = samePriority.length ? Math.max(...samePriority) + 1 : 1;
+        const samePriority = next.studentAssignments.filter((a) => a.studentId === studentId && a.timing === effectiveTiming).map((a) => a.priority ?? 0);
+        let nextPriority;
+        if (samePriority.length === 0) nextPriority = 1;
+        else if (priorityPref === "first") nextPriority = Math.min(...samePriority) - 1;
+        else nextPriority = Math.max(...samePriority) + 1;
         next.studentAssignments.push({
           id: "asg_" + Date.now() + "_" + i + "_" + Math.random().toString(36).slice(2, 6),
           studentId,
@@ -65,9 +75,9 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
           rangeTo: isInstruction ? "" : rangeTo.trim(),
           createdAt: todayStr(),
           status: "todo",
-          timing,
+          timing: effectiveTiming,
           priority: nextPriority,
-          ...(!isInstruction && type === "숙제" ? { dueDate: dueDate || undefined } : {}),
+          ...(!isInstruction && type === "숙제" ? { dueDate: dueDate || undefined, homeworkFollowUp } : {}),
           ...(isExam
             ? {
                 examDate: examDate || undefined,
@@ -90,6 +100,8 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
     setRangeFrom("");
     setRangeTo("");
     setDueDate("");
+    setHomeworkFollowUp("check_only");
+    setHomeworkPriorityPref("last");
     setIsMathflat(false);
     setMathflatFollowUp("none");
     setMathflatNote("");
@@ -155,18 +167,51 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         </select>
       </Field>
 
-      <Field label="언제 확인할 항목인가요">
-        <select value={timing} onChange={(e) => setTiming(e.target.value)} style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}>
-          {TIMING_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {TIMING_LABELS[t]}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <div style={{ fontSize: 10.5, color: C.sub, marginTop: -8, marginBottom: 14 }}>
-        새 항목은 일단 "{TIMING_LABELS[timing]}" 목록의 맨 뒤에 추가돼요. 순서를 바꾸고 싶으면 학생 커리큘럼 화면에서 드래그로 조정할 수 있어요. "퇴실 시" 항목은 클리닉 학습을 다 못 끝냈어도 체크리스트에 항상 따로 표시돼서 놓치지 않아요.
-      </div>
+      {type === "숙제" ? (
+        <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.accentText, marginBottom: 8 }}>숙제는 어떻게 확인할까요</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, cursor: "pointer" }}>
+              <input type="radio" checked={homeworkFollowUp === "check_only"} onChange={() => setHomeworkFollowUp("check_only")} />
+              가져왔는지 확인만 해주세요 <span style={{ color: C.sub, fontSize: 11 }}>(입실 시 확인)</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, cursor: "pointer" }}>
+              <input type="radio" checked={homeworkFollowUp === "redo_if_not_done"} onChange={() => setHomeworkFollowUp("redo_if_not_done")} />
+              안 해왔으면 클리닉 중에 하도록 해주세요
+            </label>
+          </div>
+          {homeworkFollowUp === "redo_if_not_done" && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.accent}22` }}>
+              <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, fontWeight: 600 }}>이미 있는 클리닉 중 항목(시험 등)보다…</div>
+              <div style={{ display: "flex", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, cursor: "pointer" }}>
+                  <input type="radio" checked={homeworkPriorityPref === "first"} onChange={() => setHomeworkPriorityPref("first")} />
+                  먼저 하기
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, cursor: "pointer" }}>
+                  <input type="radio" checked={homeworkPriorityPref === "last"} onChange={() => setHomeworkPriorityPref("last")} />
+                  나중에 하기
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <Field label="언제 확인할 항목인가요">
+            <select value={timing} onChange={(e) => setTiming(e.target.value)} style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}>
+              {TIMING_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {TIMING_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div style={{ fontSize: 10.5, color: C.sub, marginTop: -8, marginBottom: 14 }}>
+            새 항목은 일단 "{TIMING_LABELS[timing]}" 목록의 맨 뒤에 추가돼요. 순서를 바꾸고 싶으면 학생 커리큘럼 화면에서 드래그로 조정할 수 있어요. "퇴실 시" 항목은 클리닉 학습을 다 못 끝냈어도 체크리스트에 항상 따로 표시돼서 놓치지 않아요.
+          </div>
+        </>
+      )}
 
       {isInstruction ? (
         <Field label="지시 내용">

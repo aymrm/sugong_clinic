@@ -127,6 +127,7 @@ const TABLE_CONFIGS = [
       is_backlog: !!a.isBacklog,
       curriculum_template_id: a.curriculumTemplateId || null,
       curriculum_template_name: a.curriculumTemplateName || null,
+      homework_follow_up: a.homeworkFollowUp || null,
     }),
     fromRow: (r) => ({
       id: r.id,
@@ -163,6 +164,7 @@ const TABLE_CONFIGS = [
       isBacklog: !!r.is_backlog,
       curriculumTemplateId: r.curriculum_template_id || undefined,
       curriculumTemplateName: r.curriculum_template_name || undefined,
+      homeworkFollowUp: r.homework_follow_up || undefined,
     }),
   },
   {
@@ -184,6 +186,29 @@ const TABLE_CONFIGS = [
       steps: r.steps || [],
       materialShortlist: r.material_shortlist || [],
       defaultMaterial: r.default_material || "",
+    }),
+  },
+  {
+    key: "chatMessages",
+    table: "chat_messages",
+    pk: ["id"],
+    toRow: (m) => ({
+      id: m.id,
+      thread_id: m.threadId,
+      sender_id: m.senderId,
+      sender_name: m.senderName,
+      sender_role: m.senderRole,
+      body: m.body,
+      created_at: m.createdAt,
+    }),
+    fromRow: (r) => ({
+      id: r.id,
+      threadId: r.thread_id,
+      senderId: r.sender_id,
+      senderName: r.sender_name,
+      senderRole: r.sender_role,
+      body: r.body,
+      createdAt: r.created_at,
     }),
   },
   {

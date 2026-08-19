@@ -1,5 +1,15 @@
+// 날짜를 "YYYY-MM-DD"로 만들 때 toISOString()을 쓰면 UTC로 변환되면서, 한국(UTC+9)처럼 UTC보다
+// 시간이 앞선 지역에서는 자정~오전 시간대에 날짜가 하루 밀리는 버그가 생깁니다(로컬 자정이 UTC로는
+// 아직 전날이라서). 그래서 변환 없이 로컬 연/월/일 값을 그대로 문자열로 만듭니다.
+export function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateStr(new Date());
 }
 
 export function nowHM() {

@@ -16,6 +16,7 @@ const EMPTY = {
   teachers: [], students: [], courses: [], enrollments: [], studentAssignments: [],
   assignmentTemplates: [], courseCurriculum: [], materialLibrary: [], teacherNotes: [], examSessions: [],
   seats: [], roomMarkers: [], scheduleEntries: [], scheduleSkips: [], sessions: [], curriculumTemplates: [],
+  chatMessages: [],
 };
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

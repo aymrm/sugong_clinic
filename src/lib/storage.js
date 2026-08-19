@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { loadAllFromSupabase, syncDiff } from "./sync.js";
+import { supabase } from "./supabaseClient.js";
 import { deepClone } from "./time.js";
 import { withTimeout } from "./withTimeout.js";
 
@@ -32,6 +33,30 @@ export function useAppData() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 채팅 메시지는 다른 사람(다른 기기/탭)이 보낸 것도 새로고침 없이 바로 보여야 해서, 일반 동기화(내가 바꾼 것만
+  // 서버로 올리는 방식)와 별개로 Realtime 구독으로 "새로 들어온 메시지"를 받아 로컬 상태에 바로 반영합니다.
+  useEffect(() => {
+    if (!loaded || !data) return;
+    const channel = supabase
+      .channel("chat_messages_live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+        const r = payload.new;
+        const msg = { id: r.id, threadId: r.thread_id, senderId: r.sender_id, senderName: r.sender_name, senderRole: r.sender_role, body: r.body, createdAt: r.created_at };
+        setData((prev) => {
+          if (!prev) return prev;
+          if (prev.chatMessages.some((m) => m.id === msg.id)) return prev; // 내가 방금 보낸 메시지가 다시 돌아온 경우 중복 방지
+          const next = deepClone(prev);
+          next.chatMessages.push(msg);
+          dataRef.current = next;
+          return next;
+        });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loaded]); // eslint-disable-line
 
   function updateData(mutator) {
     setData((prev) => {

@@ -24,6 +24,8 @@ export default function AssignmentPanel({ data, student, updateData }) {
   const [examStartTime, setExamStartTime] = useState("");
   const [examDurationMinutes, setExamDurationMinutes] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [homeworkFollowUp, setHomeworkFollowUp] = useState("check_only"); // 'check_only' | 'redo_if_not_done'
+  const [homeworkPriorityPref, setHomeworkPriorityPref] = useState("last"); // 'first' | 'last'
   const [isMathflat, setIsMathflat] = useState(false);
   const [mathflatFollowUp, setMathflatFollowUp] = useState("none");
   const [mathflatNote, setMathflatNote] = useState("");
@@ -79,7 +81,18 @@ export default function AssignmentPanel({ data, student, updateData }) {
 
   function addAssignment() {
     if (!material.trim() && !rangeFrom.trim() && !rangeTo.trim()) return;
+    // 숙제는 "가져왔는지 확인만"이면 입실 시 확인, "안 해왔으면 클리닉 중에"면 클리닉중으로 자동 배정됩니다.
+    const isHomework = type === "숙제";
+    const effectiveTiming = isHomework ? (homeworkFollowUp === "redo_if_not_done" ? "클리닉중" : "입실") : undefined;
+    const priorityPref = isHomework && homeworkFollowUp === "redo_if_not_done" ? homeworkPriorityPref : "last";
     updateData((next) => {
+      let priority;
+      if (effectiveTiming) {
+        const samePriority = next.studentAssignments.filter((a) => a.studentId === student.id && a.timing === effectiveTiming).map((a) => a.priority ?? 0);
+        if (samePriority.length === 0) priority = 1;
+        else if (priorityPref === "first") priority = Math.min(...samePriority) - 1;
+        else priority = Math.max(...samePriority) + 1;
+      }
       next.studentAssignments.push({
         id: "asg_" + Date.now() + Math.random().toString(36).slice(2, 6),
         studentId: student.id,
@@ -90,9 +103,10 @@ export default function AssignmentPanel({ data, student, updateData }) {
         rangeTo: rangeTo.trim(),
         createdAt: todayStr(),
         status: "todo",
+        ...(effectiveTiming ? { timing: effectiveTiming, priority } : {}),
         ...(type === "시험" && totalQuestions ? { totalQuestions: Number(totalQuestions) } : {}),
         ...(type === "시험" ? { examDate: examDate || undefined, examStartTime: examStartTime || undefined, examDurationMinutes: examDurationMinutes ? Number(examDurationMinutes) : undefined } : {}),
-        ...(type === "숙제" ? { dueDate: dueDate || undefined } : {}),
+        ...(type === "숙제" ? { dueDate: dueDate || undefined, homeworkFollowUp } : {}),
         ...(canBeMathflat && isMathflat ? { isMathflat: true, mathflatFollowUp, mathflatNote: mathflatNote.trim() || undefined } : {}),
       });
     });
@@ -104,6 +118,8 @@ export default function AssignmentPanel({ data, student, updateData }) {
     setExamStartTime("");
     setExamDurationMinutes("");
     setDueDate("");
+    setHomeworkFollowUp("check_only");
+    setHomeworkPriorityPref("last");
     setIsMathflat(false);
     setMathflatFollowUp("none");
     setMathflatNote("");
@@ -241,6 +257,32 @@ export default function AssignmentPanel({ data, student, updateData }) {
           + 계획 추가
         </button>
       </div>
+
+      {type === "숙제" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14, fontSize: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+            <input type="radio" checked={homeworkFollowUp === "check_only"} onChange={() => setHomeworkFollowUp("check_only")} />
+            가져왔는지 확인만 (입실 시)
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+            <input type="radio" checked={homeworkFollowUp === "redo_if_not_done"} onChange={() => setHomeworkFollowUp("redo_if_not_done")} />
+            안 해왔으면 클리닉 중에
+          </label>
+          {homeworkFollowUp === "redo_if_not_done" && (
+            <>
+              <span style={{ color: C.sub }}>·</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input type="radio" checked={homeworkPriorityPref === "first"} onChange={() => setHomeworkPriorityPref("first")} />
+                기존 클리닉중보다 먼저
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                <input type="radio" checked={homeworkPriorityPref === "last"} onChange={() => setHomeworkPriorityPref("last")} />
+                나중에
+              </label>
+            </>
+          )}
+        </div>
+      )}
 
       {canBeMathflat && (
         <div style={{ background: "#DCEEFA55", border: "1px solid #1B6E9E33", borderRadius: 10, padding: 10, marginBottom: 14 }}>

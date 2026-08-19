@@ -1,7 +1,9 @@
+import { toLocalDateStr } from "./time.js";
+
 function daysAgo(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 export function seedState() {
@@ -57,10 +59,10 @@ export function seedState() {
       name: "수2 3단원 심화 커리큘럼",
       description: "개념 확인 → 연습문제 → 오답 정리 → 단원평가 순서",
       steps: [
-        { id: "step1", order: 1, type: "공부", material: "쎈 수2 3단원", rangeFrom: "함수의 극한 개념", rangeTo: "", timing: "클리닉중" },
-        { id: "step2", order: 2, type: "숙제", material: "개념원리 수2 3단원", rangeFrom: "연습문제 1~20", rangeTo: "", timing: "클리닉중" },
-        { id: "step3", order: 3, type: "지시사항", material: "오답 정리 노트 확인해주세요", timing: "퇴실" },
-        { id: "step4", order: 4, type: "시험", material: "3단원 단원평가", rangeFrom: "", rangeTo: "", timing: "클리닉중", examDurationMinutes: 40, totalQuestions: 20 },
+        { id: "step1", order: 1, type: "공부", material: "쎈 수2 3단원", rangeFrom: "함수의 극한 개념", rangeTo: "" },
+        { id: "step2", order: 2, type: "숙제", material: "개념원리 수2 3단원", rangeFrom: "연습문제 1~20", rangeTo: "" },
+        { id: "step3", order: 3, type: "지시사항", material: "오답 정리 노트까지 작성했는지 확인해주세요" },
+        { id: "step4", order: 4, type: "시험", material: "3단원 단원평가", rangeFrom: "", rangeTo: "", examDurationMinutes: 40, totalQuestions: 20 },
       ],
       // 이 템플릿에서 자주 쓰는 교재를 미리 골라두면, 단계를 만들 때마다 타이핑하지 않고 클릭으로 채울 수 있습니다.
       materialShortlist: ["쎈 수2 3단원", "개념원리 수2 3단원", "3단원 단원평가"],
@@ -130,6 +132,7 @@ export function seedState() {
     studentAssignments,
     assignmentTemplates,
     curriculumTemplates,
+    chatMessages: [],
     courseCurriculum,
     materialLibrary,
     teacherNotes,
