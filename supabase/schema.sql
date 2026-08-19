@@ -249,11 +249,18 @@ create table if not exists schedule_entries (
   custom_tasks jsonb,
   override_of text,
   dismissal_mode text,
-  dismissal_condition text
+  dismissal_condition text,
+  -- 지각 확인: 그냥 아직 도착 안 한 것(모름)과 "지각이라고 확인된 것"을 구분하기 위한 플래그입니다.
+  -- late_confirmed가 true면 start_time이 예상 도착 시간이고(예: 원래 5시인데 5시20분으로 바뀜),
+  -- late_time_unknown이 true면 지각인 건 확인했지만 정확히 언제 올지는 모르는 상태입니다.
+  late_confirmed boolean not null default false,
+  late_time_unknown boolean not null default false
 );
 alter table schedule_entries add column if not exists override_of text;
 alter table schedule_entries add column if not exists dismissal_mode text;
 alter table schedule_entries add column if not exists dismissal_condition text;
+alter table schedule_entries add column if not exists late_confirmed boolean not null default false;
+alter table schedule_entries add column if not exists late_time_unknown boolean not null default false;
 
 create table if not exists schedule_skips (
   id text primary key,

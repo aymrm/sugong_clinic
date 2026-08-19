@@ -1,20 +1,25 @@
 import { useState } from "react";
 import StudentPickerModal from "../components/StudentPickerModal.jsx";
 import StatusPill from "../components/ui/StatusPill.jsx";
+import LateBadge from "../components/ui/LateBadge.jsx";
+import LateModal from "../components/LateModal.jsx";
 import AdjustTimeModal from "./AdjustTimeModal.jsx";
 import GroupNoteModal from "./GroupNoteModal.jsx";
 import StudentHistoryModal from "./StudentHistoryModal.jsx";
 import TeacherCurriculumQueueModal from "./TeacherCurriculumQueueModal.jsx";
+import QuickAssignModal from "./QuickAssignModal.jsx";
 import { entriesForDate } from "../lib/util.js";
 import { C } from "../lib/theme.js";
 import { selectStyle, btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
 
 // "오늘 명단" — 내 반 기준으로 오늘 클리닉에 오는 학생과 상태를 확인.
-// 당일 학생 추가, 지각(도착/종료 시간 조정), 결석 처리, 학생을 골라 그룹 공지 남기기를 할 수 있음.
+// 당일 학생 추가, 지각(도착 시간 확인/조정), 결석 처리, 오늘 할 일 추가, 학생을 골라 그룹 공지 남기기를 할 수 있음.
 export default function TeacherTodayView({ data, updateData, date, myCourses, currentTeacherId }) {
   const [addCourseId, setAddCourseId] = useState(myCourses[0]?.id || "");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [adjustEntry, setAdjustEntry] = useState(null); // entriesForDate의 항목
+  const [lateEntry, setLateEntry] = useState(null); // entriesForDate의 항목
+  const [assignEntry, setAssignEntry] = useState(null); // {student, courseId} — 오늘 할 일 빠른 추가
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(() => new Set()); // "studentId|courseId"
   const [groupNoteOpen, setGroupNoteOpen] = useState(false);
@@ -77,34 +82,45 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
     return entry;
   }
 
-  function saveAdjust(entry, patch) {
-    const { start, end, dismissalMode, dismissalCondition } = patch;
+  // 여러 곳(귀가 설정, 지각 설정)에서 같은 방식으로 "오늘만" 오버라이드 항목을 만들거나 수정합니다.
+  // patch에 없는 필드는 지금 값을 그대로 이어받아서, 지각 설정에서 저장해도 귀가 방식이 사라지지 않고,
+  // 귀가 설정에서 저장해도 지각 표시가 사라지지 않습니다.
+  function savePatch(entry, patch) {
     updateData((next) => {
       if (entry.recurrence === "once") {
         const e = next.scheduleEntries.find((x) => x.id === entry.id);
-        if (e) {
-          e.start = start;
-          e.end = end;
-          e.dismissalMode = dismissalMode;
-          e.dismissalCondition = dismissalCondition;
-        }
+        if (e) Object.assign(e, patch);
       } else {
         next.scheduleSkips.push({ id: "skip_" + Date.now(), scheduleEntryId: entry.id, date });
         next.scheduleEntries.push({
           id: "sch_" + Date.now() + Math.random().toString(36).slice(2, 5),
           studentId: entry.studentId,
           courseId: entry.courseId,
-          start,
-          end,
+          start: entry.start,
+          end: entry.end,
           recurrence: "once",
           date,
           overrideOf: entry.id,
-          dismissalMode,
-          dismissalCondition,
+          dismissalMode: entry.dismissalMode,
+          dismissalCondition: entry.dismissalCondition,
+          lateConfirmed: entry.lateConfirmed,
+          lateTimeUnknown: entry.lateTimeUnknown,
+          ...patch,
         });
       }
     });
+  }
+
+  function saveAdjust(entry, patch) {
+    const originalStart = baseEntryOf(entry).start;
+    // "귀가 설정"에서 도착 시간을 직접 바꿔도, 그건 곧 "지각 시간을 확인해서 알려준 것"과 같은 뜻이라 지각 확인으로 남깁니다.
+    savePatch(entry, { ...patch, lateConfirmed: patch.start !== originalStart, lateTimeUnknown: false });
     setAdjustEntry(null);
+  }
+
+  function saveLate(entry, patch) {
+    savePatch(entry, patch);
+    setLateEntry(null);
   }
 
   function revertAdjust(entry) {
@@ -190,8 +206,6 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
                 const sess = findSession(e.studentId, e.courseId);
                 const key = e.studentId + "|" + e.courseId;
                 const isChecked = selected.has(key);
-                const base = baseEntryOf(e);
-                const isLate = e.overrideOf || e.start !== base.start || e.end !== base.end;
                 const hasCondition = e.dismissalMode && e.dismissalMode !== "time";
                 return (
                   <div
@@ -221,10 +235,10 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
                               {e.dismissalMode === "condition" ? "조건부 귀가" : "조건 만족시 조기귀가"}
                             </span>
                           )}
+                          <LateBadge entry={e} />
                         </div>
                         <div style={{ fontSize: 11, color: C.sub }}>
                           {e.start}~{e.end}
-                          {isLate ? " · 지각/시간조정됨" : ""}
                           {sess?.seatSnapshot ? ` · #${sess.seatSnapshot.label}자리` : ""}
                         </div>
                         {hasCondition && e.dismissalCondition && <div style={{ fontSize: 10.5, color: C.gold, marginTop: 2 }}>조건: {e.dismissalCondition}</div>}
@@ -233,8 +247,14 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
                     </div>
                     {!selectMode && (
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        <button onClick={() => setAssignEntry({ student, courseId: e.courseId })} style={btnGhostSm}>
+                          할 일 추가
+                        </button>
                         <button onClick={() => setQueueStudent(student)} style={btnGhostSm}>
                           커리큘럼 순서
+                        </button>
+                        <button onClick={() => setLateEntry(e)} style={{ ...btnGhostSm, color: e.lateConfirmed ? C.warn : undefined }}>
+                          지각
                         </button>
                         <button onClick={() => setAdjustEntry(e)} style={btnGhostSm}>
                           귀가 설정
@@ -281,6 +301,28 @@ export default function TeacherTodayView({ data, updateData, date, myCourses, cu
           onSave={(patch) => saveAdjust(adjustEntry, patch)}
           onRevert={() => revertAdjust(adjustEntry)}
           onClose={() => setAdjustEntry(null)}
+        />
+      )}
+
+      {lateEntry && (
+        <LateModal
+          studentName={data.students.find((s) => s.id === lateEntry.studentId)?.name || ""}
+          originalStart={baseEntryOf(lateEntry).start}
+          entry={lateEntry}
+          onSave={(patch) => saveLate(lateEntry, patch)}
+          onClose={() => setLateEntry(null)}
+        />
+      )}
+
+      {assignEntry && (
+        <QuickAssignModal
+          data={data}
+          updateData={updateData}
+          myCourses={myCourses}
+          currentTeacherId={currentTeacherId}
+          student={assignEntry.student}
+          courseId={assignEntry.courseId}
+          onClose={() => setAssignEntry(null)}
         />
       )}
 

@@ -263,6 +263,8 @@ const TABLE_CONFIGS = [
       override_of: e.overrideOf || null,
       dismissal_mode: e.dismissalMode || null,
       dismissal_condition: e.dismissalCondition || null,
+      late_confirmed: !!e.lateConfirmed,
+      late_time_unknown: !!e.lateTimeUnknown,
     }),
     fromRow: (r) => ({
       id: r.id,
@@ -277,6 +279,8 @@ const TABLE_CONFIGS = [
       overrideOf: r.override_of || undefined,
       dismissalMode: r.dismissal_mode || undefined,
       dismissalCondition: r.dismissal_condition || undefined,
+      lateConfirmed: !!r.late_confirmed,
+      lateTimeUnknown: !!r.late_time_unknown,
     }),
   },
   {

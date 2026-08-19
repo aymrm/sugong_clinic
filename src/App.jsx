@@ -51,6 +51,8 @@ export default function App({ onSignOut, currentUsername, currentUserId, role })
       entryId: e.id,
       start: e.start,
       end: e.end,
+      lateConfirmed: e.lateConfirmed,
+      lateTimeUnknown: e.lateTimeUnknown,
     }));
 
   function findSession(studentId, courseId) {
@@ -155,6 +157,40 @@ export default function App({ onSignOut, currentUsername, currentUserId, role })
     });
   }
 
+  function baseEntryOf(entry) {
+    if (entry.overrideOf) return data.scheduleEntries.find((e) => e.id === entry.overrideOf) || entry;
+    return entry;
+  }
+
+  // 지각 설정 저장 — 선생님 앱과 같은 방식: "오늘만" 오버라이드 항목을 만들거나 있으면 그 자리에서 수정합니다.
+  // patch에 없는 필드(귀가 방식 등)는 지금 값을 그대로 이어받아서 서로 지우지 않습니다.
+  function handleSaveLate(entryId, patch) {
+    updateData((next) => {
+      const entry = next.scheduleEntries.find((e) => e.id === entryId);
+      if (!entry) return;
+      if (entry.recurrence === "once") {
+        Object.assign(entry, patch);
+      } else {
+        next.scheduleSkips.push({ id: "skip_" + Date.now(), scheduleEntryId: entry.id, date });
+        next.scheduleEntries.push({
+          id: "sch_" + Date.now() + Math.random().toString(36).slice(2, 5),
+          studentId: entry.studentId,
+          courseId: entry.courseId,
+          start: entry.start,
+          end: entry.end,
+          recurrence: "once",
+          date,
+          overrideOf: entry.id,
+          dismissalMode: entry.dismissalMode,
+          dismissalCondition: entry.dismissalCondition,
+          lateConfirmed: entry.lateConfirmed,
+          lateTimeUnknown: entry.lateTimeUnknown,
+          ...patch,
+        });
+      }
+    });
+  }
+
   return (
     <div style={{ fontFamily: "'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif", background: C.bg, minHeight: "100%", color: C.ink }}>
       <TopBar
@@ -178,6 +214,7 @@ export default function App({ onSignOut, currentUsername, currentUserId, role })
             findSession={findSession}
             onAddAdHoc={handleAddAdHoc}
             onRemoveToday={handleRemoveToday}
+            onSaveLate={handleSaveLate}
             onAssignSeat={handleAssignSeat}
             onUnassignSeat={handleUnassignSeat}
             onEditSeats={(seats) => updateData((next) => (next.seats = seats))}

@@ -6,6 +6,8 @@ import TeacherNotesPanel from "./TeacherNotesPanel.jsx";
 import ExamScoreRow from "./ExamScoreRow.jsx";
 import Popover from "./Popover.jsx";
 import StudentCurriculumModal from "./StudentCurriculumModal.jsx";
+import LateModal from "./LateModal.jsx";
+import LateBadge from "./ui/LateBadge.jsx";
 import SectionHeader from "./ui/SectionHeader.jsx";
 import StatusPill from "./ui/StatusPill.jsx";
 import CheckBadge from "./ui/CheckBadge.jsx";
@@ -24,6 +26,7 @@ export default function MainView({
   findSession,
   onAddAdHoc,
   onRemoveToday,
+  onSaveLate,
   onAssignSeat,
   onUnassignSeat,
   onEditSeats,
@@ -31,6 +34,7 @@ export default function MainView({
 }) {
   const [openPopup, setOpenPopup] = useState(null); // {kind:'timeline'|'seat', id}
   const [curriculumStudent, setCurriculumStudent] = useState(null);
+  const [lateEntry, setLateEntry] = useState(null); // {entryId, studentId, courseId, start(원래시간)}
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addMarkerOpen, setAddMarkerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -244,6 +248,7 @@ export default function MainView({
         findSession={findSession}
         onRemoveToday={onRemoveToday}
         onOpenCurriculum={setCurriculumStudent}
+        onSetLate={setLateEntry}
       />
     );
   }
@@ -642,7 +647,10 @@ export default function MainView({
                               style={{ flex: 1, textAlign: "left", border: `1px solid ${C.line}`, borderRadius: 7, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
                             >
                               <div style={{ fontSize: 12.5, fontWeight: 700 }}>{student?.name}</div>
-                              <div style={{ fontSize: 10.5, color: C.sub }}>{course?.name}</div>
+                              <div style={{ fontSize: 10.5, color: C.sub, display: "flex", alignItems: "center", gap: 5 }}>
+                                {course?.name}
+                                <LateBadge entry={p} />
+                              </div>
                             </button>
                             <button
                               onClick={(e) => {
@@ -790,6 +798,24 @@ export default function MainView({
       {curriculumStudent && (
         <StudentCurriculumModal data={data} updateData={updateData} student={curriculumStudent} date={date} onClose={() => setCurriculumStudent(null)} />
       )}
+
+      {lateEntry &&
+        (() => {
+          const baseEntry = data.scheduleEntries.find((e) => e.id === lateEntry.entryId);
+          const originalStart = baseEntry?.overrideOf ? data.scheduleEntries.find((e) => e.id === baseEntry.overrideOf)?.start || lateEntry.start : lateEntry.start;
+          return (
+            <LateModal
+              studentName={data.students.find((s) => s.id === lateEntry.studentId)?.name || ""}
+              originalStart={originalStart}
+              entry={lateEntry}
+              onSave={(patch) => {
+                onSaveLate(lateEntry.entryId, patch);
+                setLateEntry(null);
+              }}
+              onClose={() => setLateEntry(null)}
+            />
+          );
+        })()}
     </div>
   );
 }
@@ -828,7 +854,7 @@ function TimelineGroup({ title, events, defaultOpen, renderEvent, emptyText, acc
 }
 
 /* ── 도착 확인 / 종료·채점 일정 항목 — 시간 단위로 묶고, 그 안을 선생님별로 접었다 펼 수 있게 구성 ── */
-function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openChecklist, findSession, onRemoveToday, onOpenCurriculum }) {
+function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openChecklist, findSession, onRemoveToday, onOpenCurriculum, onSetLate }) {
   const isOpen = openPopup && openPopup.kind === "timeline" && openPopup.id === ev.id;
   const allSeated =
     ev.type === "arrival" &&
@@ -869,6 +895,7 @@ function TimelineItem({ ev, data, openPopup, setOpenPopup, popupRef, openCheckli
               openChecklist={openChecklist}
               onRemoveToday={onRemoveToday}
               onOpenCurriculum={onOpenCurriculum}
+              onSetLate={onSetLate}
             />
           ))}
           {ev.type === "arrival" && (
@@ -899,7 +926,7 @@ function groupEntriesByTeacher(data, entries) {
 }
 
 // 선생님 1명 분 하위 그룹 — 기본은 펼쳐져 있고, 눌러서 접었다 펼 수 있습니다(반이 많아 목록이 길어질 때 대비).
-function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemoveToday, onOpenCurriculum }) {
+function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemoveToday, onOpenCurriculum, onSetLate }) {
   const [open, setOpen] = useState(true);
   const totalCount = group.courseGroups.reduce((sum, cg) => sum + cg.entries.length, 0);
 
@@ -953,10 +980,16 @@ function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemo
                           {sess.conditionMet ? "조건충족✓" : "조건부"}
                         </span>
                       )}
+                      {type === "arrival" && <LateBadge entry={p} />}
                       <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
                         {sess && (
                           <button onClick={() => openChecklist(sess.id)} style={btnGhostSm}>
                             체크리스트
+                          </button>
+                        )}
+                        {type === "arrival" && (
+                          <button onClick={() => onSetLate(p)} style={{ ...btnGhostSm, color: p.lateConfirmed ? C.warn : undefined }}>
+                            지각
                           </button>
                         )}
                         <button onClick={() => onRemoveToday(p.entryId)} style={btnWarnGhostSm}>

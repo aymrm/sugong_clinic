@@ -9,9 +9,11 @@ import { todayStr } from "../lib/time.js";
 // "할 일 만들기" — 반 → 학생(여러 명 가능) → 유형(숙제/공부/시험/지시사항) → 타이밍(입실/클리닉중/퇴실) → 세부내용 순으로 입력.
 // "지시사항"은 교재/범위 없이 문장 하나로 된 지시(예: "입실하면 숙제 검사해주세요", "선생님 호출해주세요")를 낼 때 씁니다.
 // 같은 내용을 여러 학생에게 한 번에 내줘야 하는 경우가 많아서, 학생은 체크박스로 여러 명 고를 수 있어요.
-export default function TeacherAssignView({ data, updateData, myCourses, currentTeacherId }) {
-  const [courseId, setCourseId] = useState(myCourses[0]?.id || "");
-  const [studentIds, setStudentIds] = useState([]);
+// lockedStudent({id,name,courseId})가 주어지면 "오늘 명단"에서 특정 학생에게 바로 할 일을 추가하는 용도로,
+// 학생/반 선택 없이 그 학생 하나로 고정됩니다(QuickAssignModal에서 사용).
+export default function TeacherAssignView({ data, updateData, myCourses, currentTeacherId, lockedStudent, embedded, onDone }) {
+  const [courseId, setCourseId] = useState(lockedStudent?.courseId || myCourses[0]?.id || "");
+  const [studentIds, setStudentIds] = useState(lockedStudent ? [lockedStudent.id] : []);
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [type, setType] = useState("숙제");
@@ -93,8 +95,11 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
       });
     });
     setJustSent(true);
-    setTimeout(() => setJustSent(false), 2200);
-    setStudentIds([]);
+    setTimeout(() => {
+      setJustSent(false);
+      if (onDone) onDone();
+    }, onDone ? 900 : 2200);
+    setStudentIds(lockedStudent ? [lockedStudent.id] : []);
     setMaterial("");
     setInstructionText("");
     setRangeFrom("");
@@ -112,16 +117,17 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 14 }}>할 일 만들기</div>
+      {!embedded && <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 14 }}>할 일 만들기</div>}
 
       <Field label="반">
         <select
           value={courseId}
           onChange={(e) => {
             setCourseId(e.target.value);
-            setStudentIds([]);
+            if (!lockedStudent) setStudentIds([]);
           }}
-          style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}
+          disabled={!!lockedStudent}
+          style={{ ...selectStyle, width: "100%", boxSizing: "border-box", opacity: lockedStudent ? 0.7 : 1 }}
         >
           {myCourses.map((c) => (
             <option key={c.id} value={c.id}>
@@ -131,31 +137,37 @@ export default function TeacherAssignView({ data, updateData, myCourses, current
         </select>
       </Field>
 
-      <Field label="학생 (여러 명 선택 가능)">
-        <button onClick={() => setStudentPickerOpen(true)} style={pickBtnStyle}>
-          {selectedStudents.length > 0 ? `${selectedStudents.length}명 선택됨 · 눌러서 더 고르기` : "학생 선택"}
-        </button>
-        {selectedStudents.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-            {selectedStudents.map((s) => (
-              <span
-                key={s.id}
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.accentSoft, color: C.accentText, borderRadius: 999, padding: "4px 10px", fontSize: 12 }}
-              >
-                {s.name}
-                <button onClick={() => removeStudent(s.id)} style={{ border: "none", background: "transparent", color: C.accentText, cursor: "pointer", fontSize: 11 }}>
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {selectedStudents.length === 1 && (
-          <button onClick={() => setQueueOpen(true)} style={{ ...btnGhostSm, marginTop: 8 }}>
-            이 학생 커리큘럼 순서 조정
+      {lockedStudent ? (
+        <Field label="학생">
+          <div style={{ ...pickBtnStyle, cursor: "default", background: C.bg }}>{lockedStudent.name}</div>
+        </Field>
+      ) : (
+        <Field label="학생 (여러 명 선택 가능)">
+          <button onClick={() => setStudentPickerOpen(true)} style={pickBtnStyle}>
+            {selectedStudents.length > 0 ? `${selectedStudents.length}명 선택됨 · 눌러서 더 고르기` : "학생 선택"}
           </button>
-        )}
-      </Field>
+          {selectedStudents.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {selectedStudents.map((s) => (
+                <span
+                  key={s.id}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.accentSoft, color: C.accentText, borderRadius: 999, padding: "4px 10px", fontSize: 12 }}
+                >
+                  {s.name}
+                  <button onClick={() => removeStudent(s.id)} style={{ border: "none", background: "transparent", color: C.accentText, cursor: "pointer", fontSize: 11 }}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {selectedStudents.length === 1 && (
+            <button onClick={() => setQueueOpen(true)} style={{ ...btnGhostSm, marginTop: 8 }}>
+              이 학생 커리큘럼 순서 조정
+            </button>
+          )}
+        </Field>
+      )}
 
       <Field label="유형">
         <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...selectStyle, width: "100%", boxSizing: "border-box" }}>
