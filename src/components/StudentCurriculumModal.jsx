@@ -11,9 +11,14 @@ import { btnAccent, btnGhostSm, btnWarnGhostSm } from "../styles/common.js";
 // 학생 1명의 "저번 시간 클리닉 내용 + 커리큘럼 진행 상황"을 한 번에 보고,
 // 오늘 진행할 항목을 고르는 화면. 학생 관리와 "오늘의 클리닉" 양쪽에서 열 수 있습니다.
 //
-// 핵심 개념: 커리큘럼 항목(studentAssignments)에는 scheduledDate가 있어서, 이 값이 오늘 날짜와 같을 때만
-// 오늘의 체크리스트에 나타납니다(값이 없으면 예전 방식대로 세션이 있을 때 항상 나타남 — 기존 데이터 호환).
-// 그래서 "대기 중" 목록에서 골라 scheduledDate를 오늘로 지정하는 게 곧 "오늘 진행할 항목 선택"입니다.
+// 핵심 개념: 커리큘럼 큐 항목(studentAssignments, isBacklog:true)에는 scheduledDate가 있어서, 이 값이 오늘
+// 날짜와 같을 때만 오늘의 체크리스트에 나타납니다. 그래서 "대기 중" 목록에서 골라 scheduledDate를 오늘로
+// 지정하는 게 곧 "오늘 진행할 항목 선택"입니다.
+// 반면 "할 일 만들기"/"할 일 추가"로 일반적으로 만든 계획(isBacklog 없음)은 scheduledDate와 무관하게 세션이
+// 있으면 항상 체크리스트에 뜨는데, 예전엔 이런 항목이 이 화면 어디에도 안 보여서(대기 중도 아니고 "오늘 진행
+// 예정"도 scheduledDate만 봐서) 방금 만든 계획이 여기 없는 것처럼 보이는 문제가 있었습니다. 지금은 "오늘 진행
+// 예정"에 이런 일반 계획도 같이 보여줘서(실제로 오늘 체크리스트에 뜰 항목과 이 목록이 일치하도록), 확인할 수
+// 있게 했습니다.
 export default function StudentCurriculumModal({ data, updateData, student, date, onClose }) {
   const [selectedBacklog, setSelectedBacklog] = useState(() => new Set());
   const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
@@ -26,7 +31,10 @@ export default function StudentCurriculumModal({ data, updateData, student, date
   const todo = allAssignments.filter((a) => a.status === "todo");
   const doneList = allAssignments.filter((a) => a.status === "done").sort((a, b) => (a.doneDate < b.doneDate ? 1 : -1));
 
-  const scheduledToday = todo.filter((a) => a.scheduledDate === today).sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+  // "오늘 진행 예정" = 오늘로 지정된 커리큘럼 큐 항목 + (커리큘럼 큐가 아닌) 일반 계획 전부.
+  // 일반 계획은 scheduledDate가 없어도 세션만 있으면 항상 체크리스트에 뜨기 때문에, 여기서도 항상 보여줘야
+  // "방금 만든 계획이 안 보인다"는 오해가 안 생깁니다.
+  const scheduledToday = todo.filter((a) => a.scheduledDate === today || !a.isBacklog).sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
   // "대기 중" = 아직 오늘로 지정 안 된 커리큘럼 큐 항목(isBacklog) + 예전에 예정했다가 놓친 항목(scheduledDate가 과거).
   // 일반적으로 만든 계획(항상 자동으로 체크리스트에 뜨는 것들)은 굳이 여기 다시 나열하지 않아서 목록이 깔끔하게 유지됩니다.
   const backlog = todo
@@ -167,9 +175,15 @@ export default function StudentCurriculumModal({ data, updateData, student, date
                     {a.examDate || ""} {a.examStartTime || ""} {a.examDurationMinutes ? `(${a.examDurationMinutes}분)` : ""}
                   </span>
                 )}
-                <button onClick={() => unschedule(a.id)} style={{ marginLeft: "auto", border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 11 }}>
-                  빼기
-                </button>
+                {a.isBacklog ? (
+                  <button onClick={() => unschedule(a.id)} style={{ marginLeft: "auto", border: "none", background: "transparent", color: C.warn, cursor: "pointer", fontSize: 11 }}>
+                    빼기
+                  </button>
+                ) : (
+                  <span title="할 일 만들기 등으로 만든 일반 계획 — 세션이 있는 한 항상 체크리스트에 떠요" style={{ marginLeft: "auto", fontSize: 10, color: C.sub }}>
+                    일반 계획
+                  </span>
+                )}
               </div>
             ))}
           </div>
