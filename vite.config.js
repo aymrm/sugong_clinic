@@ -8,10 +8,13 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/favicon-32.png", "icons/apple-touch-icon.png"],
-      // 선생님용 모바일 화면(/teacher)을 홈 화면에 설치하는 용도. 관리자는 사이트를 그냥 브라우저로 씁니다.
+      // 선생님용 모바일 화면(/teacher)을 홈 화면에 설치하는 용도로 만든 기본 매니페스트입니다.
+      // 관리자 사이트(/)는 이제 이것과 별도로 public/manifest-admin.webmanifest를 쓰고, main.jsx에서
+      // 접속 경로에 따라 <link rel="manifest">를 바꿔치기합니다 — 그래야 "/에서 설치"와 "/teacher에서 설치"가
+      // 각자 올바른 화면으로 열려요(예전엔 이 매니페스트 하나만 있어서 어디서 설치하든 항상 /teacher로 열렸습니다).
       manifest: {
-        name: "클리닉실 관리 · 선생님",
-        short_name: "클리닉 선생님",
+        name: "클리닉실 관리 · 담당 선생님",
+        short_name: "담당 선생님",
         description: "오늘의 클리닉 명단 확인, 숙제 내주기, 결과 확인",
         start_url: "/teacher",
         scope: "/",
