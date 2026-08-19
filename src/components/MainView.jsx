@@ -39,6 +39,7 @@ export default function MainView({
   const [addMarkerOpen, setAddMarkerOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const popupRef = useRef(null);
+  const sidebarRef = useRef(null); // 시간대별 일정 목록의 스크롤 컨테이너 — 스크롤바 자체를 클릭했을 때 오작동 방지용
   const canvasRef = useRef(null);
   const moveSession = useRef(null); // {items:[{type,id,startX,startY}], mouseStartX, mouseStartY} — 단일/그룹 이동 공용
   const marqueeRef = useRef(null); // {startX, startY} 캔버스 로컬 좌표 — 드래그 선택 상자
@@ -48,6 +49,10 @@ export default function MainView({
 
   useEffect(() => {
     function onDocMouseDown(e) {
+      // 목록이 길어서 스크롤이 생기면, 스크롤바 자체를 클릭(마우스가 없어 트랙 클릭으로 내리는 경우 등)했을 때
+      // e.target이 스크롤 컨테이너 자기 자신이 되는데, 이게 popupRef 바깥이라고 판단되어 열려있던 토글이
+      // 바로 닫혀버리는 문제가 있었습니다. 스크롤 컨테이너 자체를 직접 클릭한 경우는 무시합니다.
+      if (e.target === sidebarRef.current) return;
       if (popupRef.current && !popupRef.current.contains(e.target) && !e.target.closest("[data-popup-trigger]")) {
         setOpenPopup(null);
       }
@@ -524,7 +529,7 @@ export default function MainView({
 
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* 좌측: 시간대별 일정 (완료/시간지남/예정 3그룹 아코디언 + 스크롤) */}
-        <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, maxHeight: 640, overflowY: "auto", paddingRight: 2 }}>
+        <div ref={sidebarRef} style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, maxHeight: 640, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: C.sub, marginBottom: 2 }}>시간대별 일정</div>
           {timeline.length === 0 && <div style={{ fontSize: 12.5, color: C.sub }}>오늘 일정이 없습니다.</div>}
           {timeline.length > 0 && (
@@ -953,37 +958,39 @@ function TeacherSubGroup({ group, type, data, findSession, openChecklist, onRemo
                   const sess = findSession(p.studentId, cg.course.id);
                   const hasCondition = type === "checkout" && sess?.dismissalMode && sess.dismissalMode !== "time";
                   return (
-                    <div key={p.entryId} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        onClick={() => onOpenCurriculum(student)}
-                        title="커리큘럼/지난 기록 보기"
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          padding: 0,
-                          font: "inherit",
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          width: 70,
-                          textAlign: "left",
-                          cursor: "pointer",
-                          textDecoration: "underline",
-                          textDecorationColor: C.line,
-                        }}
-                      >
-                        {student?.name}
-                      </button>
-                      <StatusPill status={sess?.status || "미배정"} />
-                      {hasCondition && (
-                        <span
-                          title={sess.dismissalCondition}
-                          style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 6px" }}
+                    <div key={p.entryId} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => onOpenCurriculum(student)}
+                          title="커리큘럼/지난 기록 보기"
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            padding: 0,
+                            font: "inherit",
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            textAlign: "left",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            textDecorationColor: C.line,
+                            flexShrink: 0,
+                          }}
                         >
-                          {sess.conditionMet ? "조건충족✓" : "조건부"}
-                        </span>
-                      )}
-                      {type === "arrival" && <LateBadge entry={p} />}
-                      <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                          {student?.name}
+                        </button>
+                        <StatusPill status={sess?.status || "미배정"} />
+                        {hasCondition && (
+                          <span
+                            title={sess.dismissalCondition}
+                            style={{ fontSize: 9.5, fontWeight: 700, color: C.gold, background: C.goldSoft, borderRadius: 999, padding: "1px 6px" }}
+                          >
+                            {sess.conditionMet ? "조건충족✓" : "조건부"}
+                          </span>
+                        )}
+                        {type === "arrival" && <LateBadge entry={p} />}
+                      </div>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                         {sess && (
                           <button onClick={() => openChecklist(sess.id)} style={btnGhostSm}>
                             체크리스트
