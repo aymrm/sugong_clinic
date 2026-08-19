@@ -103,7 +103,9 @@ function ChecklistBody({ data, sessionId, updateData }) {
   function patchTask(taskId, patch) {
     updateData((next) => {
       const sess = next.sessions.find((s) => s.id === sessionId);
+      if (!sess) return;
       const task = sess.tasks.find((t) => t.id === taskId);
+      if (!task) return;
       Object.assign(task, patch);
       syncAssignment(next, sess, task);
     });
@@ -111,17 +113,22 @@ function ChecklistBody({ data, sessionId, updateData }) {
   function addTask() {
     updateData((next) => {
       const sess = next.sessions.find((s) => s.id === sessionId);
+      if (!sess) return;
       sess.tasks.push({ id: "t_" + sessionId + "_" + Date.now(), order: sess.tasks.length + 1, material: "", rangeFrom: "", rangeTo: "", checked: false, actualRange: "", memo: "", assignmentId: null });
     });
   }
   function removeTask(taskId) {
     updateData((next) => {
       const sess = next.sessions.find((s) => s.id === sessionId);
+      if (!sess) return;
       sess.tasks = sess.tasks.filter((t) => t.id !== taskId);
     });
   }
   function patchSession(patch) {
-    updateData((next) => Object.assign(next.sessions.find((s) => s.id === sessionId), patch));
+    updateData((next) => {
+      const sess = next.sessions.find((s) => s.id === sessionId);
+      if (sess) Object.assign(sess, patch);
+    });
   }
   // 시험/숙제 항목은 체크/성적(또는 진행범위)을 과제(studentAssignments)에 직접 반영
   // — "오늘의 클리닉"의 시험 종료·숙제 확인 팝업과 같은 데이터를 공유합니다.

@@ -152,7 +152,8 @@ function TeacherCourseSection({ data, updateData, currentTeacherId }) {
                       value={t.name}
                       onChange={(e) =>
                         updateData((next) => {
-                          next.teachers.find((x) => x.id === t.id).name = e.target.value;
+                          const target = next.teachers.find((x) => x.id === t.id);
+                          if (target) target.name = e.target.value;
                         })
                       }
                       style={{ ...inputStyle, width: 140 }}
@@ -162,7 +163,8 @@ function TeacherCourseSection({ data, updateData, currentTeacherId }) {
                       value={t.role || "teacher"}
                       onChange={(e) =>
                         updateData((next) => {
-                          next.teachers.find((x) => x.id === t.id).role = e.target.value;
+                          const target = next.teachers.find((x) => x.id === t.id);
+                          if (target) target.role = e.target.value;
                         })
                       }
                       style={selectStyle}
@@ -240,7 +242,8 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
 
   function patch(field, value) {
     updateData((next) => {
-      next.courses.find((x) => x.id === course.id)[field] = value;
+      const c = next.courses.find((x) => x.id === course.id);
+      if (c) c[field] = value;
     });
   }
 
@@ -259,6 +262,7 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
   function addExtraSlot() {
     updateData((next) => {
       const c = next.courses.find((x) => x.id === course.id);
+      if (!c) return;
       if (!c.extraTimeSlots) c.extraTimeSlots = [];
       c.extraTimeSlots.push({ id: "slot_" + Date.now(), dayOfWeek: newSlotDay, start: newSlotStart, end: newSlotEnd });
     });
@@ -271,10 +275,12 @@ function CourseCard({ data, course, updateData, currentTeacherId }) {
     }
     updateData((next) => {
       const c = next.courses.find((x) => x.id === course.id);
+      if (!c) return;
       const extras = c.extraTimeSlots || [];
       if (slotId === "__primary__") {
         // 대표 자리(day_of_week/start/end)로 쓰이던 시간대를 지우면, 남은 시간대 중 하나가 그 자리를 이어받습니다.
         const [promoted, ...rest] = extras;
+        if (!promoted) return;
         c.dayOfWeek = promoted.dayOfWeek;
         c.start = promoted.start;
         c.end = promoted.end;

@@ -173,7 +173,8 @@ export default function StudentView({ data, updateData }) {
                         value={s.name}
                         onChange={(e) =>
                           updateData((next) => {
-                            next.students.find((st) => st.id === s.id).name = e.target.value;
+                            const target = next.students.find((st) => st.id === s.id);
+                            if (target) target.name = e.target.value;
                           })
                         }
                         style={{ ...inputStyle, width: 84 }}
@@ -184,7 +185,8 @@ export default function StudentView({ data, updateData }) {
                         value={s.grade}
                         onChange={(e) =>
                           updateData((next) => {
-                            next.students.find((st) => st.id === s.id).grade = e.target.value;
+                            const target = next.students.find((st) => st.id === s.id);
+                            if (target) target.grade = e.target.value;
                           })
                         }
                         placeholder="예: 고1"
@@ -196,7 +198,8 @@ export default function StudentView({ data, updateData }) {
                         value={s.school || ""}
                         onChange={(e) =>
                           updateData((next) => {
-                            next.students.find((st) => st.id === s.id).school = e.target.value;
+                            const target = next.students.find((st) => st.id === s.id);
+                            if (target) target.school = e.target.value;
                           })
                         }
                         placeholder="학교"
