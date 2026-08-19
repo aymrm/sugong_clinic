@@ -163,16 +163,18 @@ export default function MainView({
   }
 
   // ── 일정 항목의 완료 여부 판단 (유형별) ──
+  // 도착/종료는 이제 시간 단위로 여러 반이 한 버킷에 섞일 수 있어서(각 entry가 자기 course를 따로 들고 있음),
+  // 버킷 전체에 단일 course가 있다고 가정하면 안 됩니다 — p.course.id를 써야 합니다.
   function isEventComplete(ev) {
     if (ev.type === "arrival") {
       return ev.entries.every((p) => {
-        const s = findSession(p.studentId, ev.course.id);
+        const s = findSession(p.studentId, p.course.id);
         return s && (s.seatId || s.status === "완료");
       });
     }
     if (ev.type === "checkout") {
       return ev.entries.every((p) => {
-        const s = findSession(p.studentId, ev.course.id);
+        const s = findSession(p.studentId, p.course.id);
         return s && s.status === "완료";
       });
     }
