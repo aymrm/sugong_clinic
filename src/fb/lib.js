@@ -95,6 +95,9 @@ export function daysBetween(a, b) {
 export async function callAI(action, payload) {
   const { data, error } = await supabase.functions.invoke("ai", { body: { action, ...payload } });
   if (error) {
+    if (error.name === "FunctionsFetchError" || /Failed to send a request/i.test(error.message || "")) {
+      throw new Error("AI 서버에 연결하지 못했어요. Supabase → Edge Functions에 'ai' 함수가 배포돼 있는지 확인해주세요. 배포했는데도 같다면 최신 ai 함수 코드로 다시 배포해주세요.");
+    }
     let msg = error.message;
     try {
       const body = await error.context?.json?.();

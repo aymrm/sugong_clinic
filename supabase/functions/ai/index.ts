@@ -14,9 +14,12 @@ const MODEL_TEXT = Deno.env.get("ANTHROPIC_MODEL_TEXT") ?? "claude-sonnet-5-5";
 const MODEL_VISION = Deno.env.get("ANTHROPIC_MODEL_VISION") ?? "claude-opus-5-5";
 const BUCKET = "fb-images";
 
+// 최신 supabase-js는 x-supabase-client-* 같은 헤더를 더 보냅니다. 허용 목록에 없으면
+// 브라우저가 요청을 막아 "Failed to send a request to the Edge Function"이 나므로 넉넉히 허용합니다.
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-region",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -41,7 +44,11 @@ function json(body: unknown, status = 200) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") {
+    // 브라우저가 묻는 헤더를 그대로 허용해 줍니다(앞으로 헤더가 더 늘어나도 안전).
+    const asked = req.headers.get("Access-Control-Request-Headers");
+    return new Response("ok", { headers: { ...CORS, ...(asked ? { "Access-Control-Allow-Headers": asked } : {}) } });
+  }
   try {
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "로그인이 필요해요." }, 401);
