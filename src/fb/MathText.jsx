@@ -2,36 +2,47 @@ import { useEffect, useState } from "react";
 
 // 수식이 섞인 글을 보여줍니다. $...$(문장 안), $$...$$(한 줄 전체), \( \), \[ \] 를 KaTeX로 그립니다.
 // KaTeX는 처음 필요할 때 CDN에서 한 번만 불러옵니다(패키지 설치 없음). 못 불러오면 원래 글 그대로 보여줍니다.
-const KATEX_VERSION = "0.16.22";
+// KaTeX는 사이트에 같이 들어 있는 /katex 파일을 먼저 쓰고, 없으면 CDN에서 불러옵니다.
+// (외부 CDN이 막힌 휴대폰·학원 와이파이에서도 수식이 보이도록)
+const KATEX_CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.22/dist";
 let loading = null;
 
-function katexBase() {
-  return (typeof window !== "undefined" && window.__KATEX_BASE) || `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist`;
+function injectScript(src) {
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(!!window.katex);
+    s.onerror = () => {
+      s.remove();
+      resolve(false);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+function injectCss(href) {
+  document.querySelectorAll("link[data-katex]").forEach((l) => l.remove());
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.katex = "1";
+  document.head.appendChild(link);
 }
 
 export function loadKatex() {
   if (typeof window === "undefined") return Promise.resolve(null);
   if (window.katex) return Promise.resolve(window.katex);
   if (loading) return loading;
-  loading = new Promise((resolve) => {
-    const base = katexBase();
-    if (!document.querySelector("link[data-katex]")) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = `${base}/katex.min.css`;
-      link.dataset.katex = "1";
-      document.head.appendChild(link);
+  const bases = window.__KATEX_BASE ? [window.__KATEX_BASE] : ["/katex", KATEX_CDN];
+  loading = (async () => {
+    for (const base of bases) {
+      injectCss(`${base}/katex.min.css`);
+      if (await injectScript(`${base}/katex.min.js`)) return window.katex;
     }
-    const s = document.createElement("script");
-    s.src = `${base}/katex.min.js`;
-    s.async = true;
-    s.onload = () => resolve(window.katex || null);
-    s.onerror = () => {
-      loading = null; // 다음에 다시 시도
-      resolve(null);
-    };
-    document.head.appendChild(s);
-  });
+    loading = null; // 다음에 다시 시도
+    return null;
+  })();
   return loading;
 }
 

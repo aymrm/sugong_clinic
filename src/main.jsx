@@ -15,6 +15,17 @@ if (isLegacy && !isLegacyTeacher) {
   if (manifestLink) manifestLink.setAttribute("href", "/manifest-admin.webmanifest");
 }
 
+// 새 버전이 배포돼 서비스 워커가 바뀌면 한 번만 새로고침해서 예전 화면이 남지 않게 합니다.
+if ("serviceWorker" in navigator) {
+  let reloaded = false;
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>{isLegacy ? <AuthGate mode={isLegacyTeacher ? "teacher" : "admin"} /> : <FeedbackApp />}</ErrorBoundary>
