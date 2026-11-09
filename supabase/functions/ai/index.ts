@@ -22,6 +22,20 @@ const CORS = {
 
 type Ctx = { db: SupabaseClient; teacherId: string; teacherName: string };
 
+// 새 프로젝트는 예전 anon 키 대신 "publishable" 키만 있을 수 있어서 둘 다 받습니다.
+function publicKey(): string {
+  const legacy = Deno.env.get("SUPABASE_ANON_KEY");
+  if (legacy) return legacy;
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}");
+    const first = Object.values(keys)[0];
+    if (typeof first === "string") return first;
+  } catch {
+    /* 무시 */
+  }
+  throw new Error("Supabase 공개 키를 찾지 못했어요.");
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
@@ -31,7 +45,7 @@ Deno.serve(async (req) => {
   try {
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "로그인이 필요해요." }, 401);
-    const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    const db = createClient(Deno.env.get("SUPABASE_URL")!, publicKey(), {
       global: { headers: { Authorization: auth } },
     });
     const { data: userData, error: userErr } = await db.auth.getUser();
