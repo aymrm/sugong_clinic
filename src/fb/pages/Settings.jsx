@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNav } from "../FeedbackApp.jsx";
-import { run, supabase, uid } from "../lib.js";
+import { run, supabase, uid, useLoad } from "../lib.js";
 import { useBase } from "../store.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Notice, Page, Row, SectionTitle, Segmented, Select, Sheet, T, TextArea, Toggle, useToast } from "../ui.jsx";
 
@@ -11,13 +11,14 @@ export default function Settings() {
   const base = useBase();
   const nav = useNav();
   const [tab, setTab] = useState("me");
-  const tabs = [{ value: "me", label: "내 설정" }, ...(base.isAdmin ? [{ value: "students", label: "학생·반" }, { value: "academy", label: "학원" }] : [])];
+  const tabs = [{ value: "me", label: "내 설정" }, { value: "requests", label: "개선 요청" }, ...(base.isAdmin ? [{ value: "students", label: "학생·반" }, { value: "academy", label: "학원" }] : [])];
   return (
     <Page title="설정" onBack={nav.back}>
       {tabs.length > 1 && <Segmented value={tab} options={tabs} onChange={setTab} />}
       {tab === "me" && <MySettings />}
       {tab === "students" && <StudentsAdmin />}
       {tab === "academy" && <AcademySettings />}
+      {tab === "requests" && <DevRequests />}
     </Page>
   );
 }
@@ -449,3 +450,146 @@ function BulkSheet({ onClose }) {
   );
 }
 const td = { padding: 8, borderBottom: `1px solid ${T.lineSoft}` };
+
+// ------------------------------------------------------------------
+// 개선 요청함: DB 구조·앱 기능을 바꿔야 해결되는 요청 모음
+// ------------------------------------------------------------------
+const REQ_STATUS = { new: ["새 요청", "warn"], reviewing: ["검토 중", "partial"], done: ["반영함", "ok"], rejected: ["보류", "gray"] };
+const REQ_CATS = ["DB 구조", "앱 기능", "AI 동작", "기타"];
+
+function requestsToMarkdown(list, base) {
+  return list
+    .map((r, i) =>
+      [
+        `## ${i + 1}. [${r.category}] ${r.title}${r.count > 1 ? ` (×${r.count})` : ""}`,
+        `- 요청한 사람: ${base.teacherById[r.created_by]?.name || "?"} · ${new Date(r.created_at).toLocaleDateString("ko-KR")} · ${r.source === "assistant" ? "AI 도우미가 기록" : "직접 작성"}`,
+        r.problem && `- 하려던 것: ${r.problem}`,
+        r.why_blocked && `- 안 되는 이유: ${r.why_blocked}`,
+        r.suggestion && `- 제안: ${r.suggestion}`,
+        r.example && `- 원래 요청:\n  > ${r.example.replace(/\n/g, "\n  > ")}`,
+        r.admin_note && `- 메모: ${r.admin_note}`,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n\n");
+}
+
+function DevRequests() {
+  const base = useBase();
+  const toast = useToast();
+  const [filter, setFilter] = useState("open");
+  const [editing, setEditing] = useState(null);
+  const d = useLoad(() => run(supabase.from("dev_requests").select("*").order("updated_at", { ascending: false })), []);
+  const list = (d.data || []).filter((r) => (filter === "open" ? r.status === "new" || r.status === "reviewing" : true));
+  const copyAll = async () => {
+    const text = `# 피드백 앱 개선 요청 (${new Date().toLocaleDateString("ko-KR")})\n\n${requestsToMarkdown(list, base)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`${list.length}건을 복사했어요. Claude에게 붙여넣으면 돼요.`);
+    } catch {
+      toast("복사하지 못했어요", "error");
+    }
+  };
+  return (
+    <>
+      <Notice tone="info">
+        선생님 요청 중 지금 구조로는 해결이 안 되는 것(필요한 칸·화면이 없음 등)이 여기에 쌓여요. AI 도우미가 알아서 남기고, 직접 남길 수도 있어요.
+        {base.isAdmin ? " [복사]로 한꺼번에 복사해서 Claude에게 붙여넣으면 반영 작업을 바로 시작할 수 있어요." : ""}
+      </Notice>
+      <Row style={{ flexWrap: "nowrap" }}>
+        <Segmented value={filter} onChange={setFilter} options={[{ value: "open", label: "처리 전" }, { value: "all", label: "전체" }]} style={{ flex: 1 }} />
+      </Row>
+      <Row style={{ flexWrap: "nowrap" }}>
+        <Btn kind="ghost" onClick={() => setEditing({})} style={{ flex: 1 }}>
+          + 직접 남기기
+        </Btn>
+        {base.isAdmin && (
+          <Btn onClick={copyAll} disabled={!list.length} style={{ flex: 1 }}>
+            {list.length}건 복사
+          </Btn>
+        )}
+      </Row>
+      <ErrorBox error={d.error} onRetry={() => d.reload()} />
+      {!d.data ? null : !list.length ? (
+        <Card>
+          <Empty>남은 개선 요청이 없어요</Empty>
+        </Card>
+      ) : (
+        list.map((r) => {
+          const st = REQ_STATUS[r.status] || REQ_STATUS.new;
+          return (
+            <button key={r.id} type="button" onClick={() => setEditing(r)} style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 6, cursor: "pointer", textAlign: "left", fontFamily: T.font, color: T.ink }}>
+              <Row>
+                <Chip tone={st[1]}>{st[0]}</Chip>
+                <Chip tone="gray">{r.category}</Chip>
+                {r.count > 1 && <Chip tone="warn">×{r.count}</Chip>}
+                <span style={{ fontSize: 11.5, color: T.faint, marginLeft: "auto" }}>
+                  {base.teacherById[r.created_by]?.name} · {r.source === "assistant" ? "AI 기록" : "직접"}
+                </span>
+              </Row>
+              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{r.title}</div>
+              {r.problem && <div style={{ fontSize: 13, lineHeight: 1.5 }}>{r.problem}</div>}
+              {r.suggestion && <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5 }}>제안: {r.suggestion}</div>}
+            </button>
+          );
+        })
+      )}
+      {editing && <DevRequestSheet r={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); d.reload(true); }} />}
+    </>
+  );
+}
+
+function DevRequestSheet({ r, onClose, onSaved }) {
+  const base = useBase();
+  const isNew = !r.id;
+  const canEdit = isNew || base.isAdmin || r.created_by === base.me.id;
+  const [f, setF] = useState({ category: r.category || "앱 기능", title: r.title || "", problem: r.problem || "", why_blocked: r.why_blocked || "", suggestion: r.suggestion || "", status: r.status || "new", admin_note: r.admin_note || "" });
+  const [err, setErr] = useState(null);
+  const set = (k) => (e) => setF({ ...f, [k]: e?.target ? e.target.value : e });
+  const save = async () => {
+    setErr(null);
+    try {
+      if (isNew) await run(supabase.from("dev_requests").insert({ ...f, created_by: base.me.id, source: "manual" }));
+      else await run(supabase.from("dev_requests").update({ ...f, updated_at: new Date().toISOString() }).eq("id", r.id));
+      onSaved();
+    } catch (e) {
+      setErr(e);
+    }
+  };
+  return (
+    <Sheet open title={isNew ? "개선 요청 남기기" : "개선 요청"} onClose={onClose} footer={canEdit ? <Btn onClick={save} disabled={!f.title.trim()} style={{ width: "100%" }}>저장</Btn> : null}>
+      <ErrorBox error={err} />
+      <Field label="종류">
+        <Segmented value={f.category} onChange={set("category")} options={REQ_CATS} />
+      </Field>
+      <Field label="제목">
+        <Input value={f.title} onChange={set("title")} disabled={!canEdit} placeholder="예: 학생별 내신 시험 범위를 저장하고 싶어요" />
+      </Field>
+      <Field label="하려던 것">
+        <TextArea rows={3} value={f.problem} onChange={set("problem")} disabled={!canEdit} />
+      </Field>
+      <Field label="지금 안 되는 이유">
+        <TextArea rows={2} value={f.why_blocked} onChange={set("why_blocked")} disabled={!canEdit} />
+      </Field>
+      <Field label="제안">
+        <TextArea rows={2} value={f.suggestion} onChange={set("suggestion")} disabled={!canEdit} />
+      </Field>
+      {r.example && (
+        <Field label="원래 요청">
+          <div style={{ fontSize: 13, whiteSpace: "pre-wrap", background: T.soft, borderRadius: 10, padding: 10 }}>{r.example}</div>
+        </Field>
+      )}
+      {!isNew && base.isAdmin && (
+        <>
+          <Field label="상태">
+            <Select value={f.status} onChange={set("status")} options={Object.entries(REQ_STATUS).map(([value, [label]]) => ({ value, label }))} />
+          </Field>
+          <Field label="관리자 메모">
+            <TextArea rows={2} value={f.admin_note} onChange={set("admin_note")} />
+          </Field>
+        </>
+      )}
+    </Sheet>
+  );
+}

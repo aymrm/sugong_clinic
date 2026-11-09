@@ -75,7 +75,7 @@ export default function Assistant() {
     setErr(null);
     try {
       const out = await callAI("assistant", { messages: next.map((m) => ({ role: m.role, text: m.text, images: m.images })) });
-      setMsgs((xs) => [...xs, { role: "assistant", text: out.reply, proposal: out.proposal?.ops?.length ? { ...out.proposal, state: "pending" } : null }]);
+      setMsgs((xs) => [...xs, { role: "assistant", text: out.reply, proposal: out.proposal?.ops?.length ? { ...out.proposal, state: "pending" } : null, reported: out.reported || null }]);
     } catch (e) {
       setErr(e);
     }
@@ -172,6 +172,13 @@ export default function Assistant() {
             {m.imageCount ? <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>사진 {m.imageCount}장</div> : null}
           </div>
           {m.proposal && <ProposalCard p={m.proposal} onApply={() => apply(i)} onReject={() => reject(i)} />}
+          {m.reported && (
+            <div style={{ width: "100%", boxSizing: "border-box", background: T.warnSoft, border: `1px solid ${T.warnLine}`, borderRadius: 12, padding: "10px 12px", fontSize: 13, lineHeight: 1.5, color: T.warnInk }}>
+              <b>개선 요청함에 {m.reported.merged ? "같은 요청이 있어 횟수를 올렸어요" : "남겼어요"}</b>
+              <div>{m.reported.title}</div>
+              <div style={{ fontSize: 12, marginTop: 2 }}>지금 구조로는 담을 수 없는 요청이라 개발 담당자가 확인한 뒤 반영돼요. 설정 → 개선 요청에서 볼 수 있어요.</div>
+            </div>
+          )}
         </div>
       ))}
       {busy && <div style={{ fontSize: 13, color: T.sub }}>생각하는 중…</div>}

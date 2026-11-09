@@ -484,3 +484,35 @@ begin
     alter publication supabase_realtime add table exam_papers;
   end if;
 end $$;
+
+-- ------------------------------------------------------------
+-- 9. 개선 요청함: 선생님 요청 중 DB 구조나 앱 기능을 바꿔야 해결되는 것을 모아둡니다.
+--    AI 도우미가 스스로 남기거나, 선생님이 직접 남깁니다. 관리자(개발 담당)가 보고 반영합니다.
+-- ------------------------------------------------------------
+create table if not exists dev_requests (
+  id text primary key default gen_random_uuid()::text,
+  created_by text references teachers(id) on delete set null,
+  source text not null default 'manual',   -- assistant | manual
+  category text not null default '기타',    -- DB 구조 | 앱 기능 | AI 동작 | 기타
+  title text not null,
+  problem text,        -- 선생님이 하려던 것
+  why_blocked text,    -- 지금 구조로 안 되는 이유
+  suggestion text,     -- 제안하는 변경(표·칸·화면 등)
+  example text,        -- 원래 요청 문장
+  status text not null default 'new',      -- new | reviewing | done | rejected
+  admin_note text,
+  count int not null default 1,            -- 같은 요청이 반복된 횟수
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table dev_requests enable row level security;
+drop policy if exists "dev req insert" on dev_requests;
+drop policy if exists "dev req select" on dev_requests;
+drop policy if exists "dev req update" on dev_requests;
+drop policy if exists "dev req delete" on dev_requests;
+create policy "dev req insert" on dev_requests for insert with check (is_onboarded());
+-- 본인이 남긴 것과 관리자는 전체를 봅니다(AI가 같은 요청을 찾아 횟수를 올릴 수 있게 온보딩된 사람은 읽기 허용).
+create policy "dev req select" on dev_requests for select using (is_onboarded());
+create policy "dev req update" on dev_requests for update using (is_admin() or created_by = my_teacher_id()) with check (is_admin() or created_by = my_teacher_id());
+create policy "dev req delete" on dev_requests for delete using (is_admin());

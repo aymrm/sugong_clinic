@@ -816,6 +816,23 @@ async function assistant(ctx: Ctx, body: any) {
     },
   ];
 
+  tools.push({
+    name: "report_limitation",
+    description: "선생님 요청이 지금 DB 구조나 앱 기능으로는 해결되지 않을 때(필요한 칸·표가 없음, 화면이 없음, AI 동작을 바꿔야 함 등) 개발 담당자에게 개선 요청을 남깁니다. 우회해서 엉뚱한 칸에 억지로 넣지 말고 이걸 쓰세요.",
+    input_schema: {
+      type: "object",
+      properties: {
+        category: { type: "string", enum: ["DB 구조", "앱 기능", "AI 동작", "기타"] },
+        title: { type: "string", description: "한 줄 제목" },
+        problem: { type: "string", description: "선생님이 하려던 것" },
+        why_blocked: { type: "string", description: "지금 구조로 안 되는 이유" },
+        suggestion: { type: "string", description: "제안하는 변경(어떤 표에 어떤 칸, 어떤 화면 등 구체적으로)" },
+        example: { type: "string", description: "선생님의 원래 요청 문장" },
+      },
+      required: ["category", "title", "problem", "why_blocked", "suggestion"],
+    },
+  } as any);
+
   const system = `당신은 수학 학원 앱 안의 데이터 도우미입니다. 선생님들은 개발자가 아니므로, 선생님이 말이나 사진으로 알려준 정보(학교 출제 경향, 교육과정 개정 차이, 과목별로 써도 되는/안 되는 풀이, 문제집 정보, 시험 일정, 학생 목표 등)를 아래 DB 구조에 맞게 정리해 변경을 제안합니다.
 오늘: ${new Date().toISOString().slice(0, 10)} · 대화 상대: ${ctx.teacherName} 선생님
 
@@ -826,9 +843,11 @@ ${ASSISTANT_SCHEMA_DOC}
 - 선생님이 말하지 않은 사실을 지어내지 않습니다. 일반 지식으로 보충할 때는 values.source나 notes에 "AI 보충(확인 필요)"이라고 남기고, 대답에서도 밝힙니다.
 - 애매하면 제안하기 전에 짧게 질문합니다.
 - 변경이 필요하면 propose_changes를 한 번 호출하고, 마지막에 한국어로 무엇을 제안했는지 2~4문장으로 말합니다. 단순 질문에는 DB를 찾아보고 답만 합니다.
-- 학생 정보 변경은 students의 허용된 칸만, 메모는 추가만 할 수 있습니다.`;
+- 학생 정보 변경은 students의 허용된 칸만, 메모는 추가만 할 수 있습니다.
+- 요청을 지금 구조로 제대로 담을 수 없으면(맞는 칸·표·화면이 없음) 억지로 notes 같은 곳에 우겨넣지 말고 report_limitation으로 개선 요청을 남긴 뒤, 선생님께 "개선 요청함에 남겨뒀다"고 알리고 지금 할 수 있는 임시 방법이 있으면 함께 말합니다.`;
 
   let proposal: any = null;
+  let reported: any = null;
   let reply = "";
   for (let turn = 0; turn < 8; turn++) {
     const res = await claudeRaw(MODEL_TEXT, system, messages, tools, 4000);
@@ -843,7 +862,10 @@ ${ASSISTANT_SCHEMA_DOC}
       let out: unknown;
       try {
         if (u.name === "search_rows") out = await searchRows(db, u.input);
-        else if (u.name === "propose_changes") {
+        else if (u.name === "report_limitation") {
+          reported = await reportLimitation(ctx, u.input);
+          out = reported.merged ? "같은 요청이 이미 있어 횟수를 올렸습니다." : "개선 요청함에 남겼습니다.";
+        } else if (u.name === "propose_changes") {
           proposal = validateProposal(u.input);
           out = "제안을 선생님 화면에 보여드렸습니다. 선생님이 확인 버튼을 누르면 저장됩니다.";
         } else out = "알 수 없는 도구";
@@ -854,7 +876,7 @@ ${ASSISTANT_SCHEMA_DOC}
     }
     messages.push({ role: "user", content: results });
   }
-  return { reply: reply || (proposal ? proposal.summary : "처리했어요."), proposal };
+  return { reply: reply || (proposal ? proposal.summary : "처리했어요."), proposal, reported };
 }
 
 async function searchRows(db: SupabaseClient, input: any) {
@@ -914,4 +936,28 @@ async function applyChanges(ctx: Ctx, body: any) {
     }
   }
   return { results };
+}
+
+// 개선 요청 남기기: 같은 제목의 열린 요청이 있으면 새로 만들지 않고 횟수만 올립니다.
+async function reportLimitation(ctx: Ctx, input: any) {
+  const { db } = ctx;
+  const title = String(input.title ?? "").slice(0, 200);
+  const { data: same } = await db.from("dev_requests").select("id, count, example").eq("title", title).in("status", ["new", "reviewing"]).maybeSingle();
+  if (same) {
+    const example = [same.example, input.example].filter(Boolean).join("\n---\n").slice(0, 4000);
+    await db.from("dev_requests").update({ count: (same.count ?? 1) + 1, example, updated_at: new Date().toISOString() }).eq("id", same.id);
+    return { id: same.id, title, merged: true };
+  }
+  const { data, error } = await db.from("dev_requests").insert({
+    created_by: ctx.teacherId,
+    source: "assistant",
+    category: input.category ?? "기타",
+    title,
+    problem: input.problem ?? null,
+    why_blocked: input.why_blocked ?? null,
+    suggestion: input.suggestion ?? null,
+    example: input.example ?? null,
+  }).select("id").single();
+  if (error) throw new Error(error.message);
+  return { id: data.id, title, merged: false };
 }
