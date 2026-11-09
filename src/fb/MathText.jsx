@@ -171,3 +171,48 @@ export function ProblemText({ text }) {
     </div>
   );
 }
+
+// 풀이를 한 단계씩 줄을 나눠 보여줍니다.
+// 줄바꿈이 있으면 그대로, 없으면 $…$ 밖의 쉼표·세미콜론·→ 로 나눕니다(수식이 2개 이상일 때만).
+export function splitSteps(text) {
+  const str = String(text || "").trim();
+  if (!str) return [];
+  const lines = str.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 1) return lines;
+  if ((str.match(/\$/g) || []).length < 4) return [str];
+  const out = [];
+  let buf = "";
+  let inMath = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === "$") inMath = !inMath;
+    if (!inMath && (ch === "," || ch === ";" || ch === "→")) {
+      if (buf.trim()) out.push(buf.trim());
+      buf = "";
+      continue;
+    }
+    buf += ch;
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out.length > 1 ? out : [str];
+}
+
+export function StepsText({ text }) {
+  const steps = splitSteps(text);
+  if (!steps.length) return null;
+  if (steps.length === 1) return <MathText text={steps[0]} />;
+  return (
+    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      {steps.map((st, i) => (
+        <li key={i} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+          <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 11, background: "#EAEEFC", color: "#2848C9", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", top: -2 }}>
+            {i + 1}
+          </span>
+          <span style={{ minWidth: 0, overflowX: "auto" }}>
+            <MathText text={st} />
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}

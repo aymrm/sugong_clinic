@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNav } from "../FeedbackApp.jsx";
 import { BUCKET, callAI, run, shortDate, signedUrl, supabase, todayISO, uploadImages, useLoad } from "../lib.js";
 import { useBase } from "../store.jsx";
-import MathText, { ProblemText } from "../MathText.jsx";
+import MathText, { ProblemText, StepsText } from "../MathText.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Loading, Notice, Page, Row, Select, Sheet, T, TextArea, Toggle, useToast, verdictChip } from "../ui.jsx";
 
 const STATUS = { pending: ["대기", "gray"], processing: ["분석 중", "partial"], done: ["분석 완료", "ok"], error: ["실패", "wrong"] };
@@ -433,7 +433,14 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
             <Mini label="학생 답" value={p.student_answer} />
             <Mini label="정답" value={p.correct_answer} />
           </div>
-          <Block label="판독한 풀이" value={p.reading} />
+          {p.reading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>판독한 풀이</div>
+              <div style={{ fontSize: 14.5, lineHeight: 1.8 }}>
+                <StepsText text={p.reading} />
+              </div>
+            </div>
+          )}
           {p.evidence?.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>판단 근거</div>
@@ -573,9 +580,9 @@ function EditProblemSheet({ p, onClose, onSave }) {
           <Input value={f.correct_answer} onChange={set("correct_answer")} />
         </Field>
       </Grid2>
-      <Field label="판독한 풀이">
+      <Field label="판독한 풀이" hint="한 줄에 한 단계씩 쓰면 번호를 붙여 보여줘요">
         <TextArea rows={4} value={f.reading} onChange={set("reading")} />
-        {f.reading && <div style={{ fontSize: 13.5, background: T.soft, borderRadius: 8, padding: "8px 10px" }}><MathText text={f.reading} /></div>}
+        {f.reading && <div style={{ fontSize: 13.5, background: T.soft, borderRadius: 8, padding: "8px 10px" }}><StepsText text={f.reading} /></div>}
       </Field>
       <Field label="선생님 메모">
         <TextArea rows={2} value={f.teacher_note} onChange={set("teacher_note")} />
