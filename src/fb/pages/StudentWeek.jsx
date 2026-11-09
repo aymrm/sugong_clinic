@@ -5,6 +5,7 @@ import { buildFeedbackText, canvasToFile, drawReport, shareOrDownload } from "..
 import { teacherLabel, useBase } from "../store.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Loading, Notice, Page, Row, SectionTitle, Segmented, Select, Sheet, T, TextArea, Toggle, useToast } from "../ui.jsx";
 import { WeekNav } from "./Home.jsx";
+import { UploadList, UploadSheet, useLiveRefresh } from "./Worksheets.jsx";
 
 const ATTEND = ["출석", "지각", "결석", "조퇴", "보강"];
 const CLINIC_TYPES = ["", "교재 메우기", "테스트", "오답", "기타"];
@@ -39,6 +40,7 @@ export default function StudentWeek({ studentId, weekStart }) {
   const tabs = [
     { value: "record", label: "수업 기록" },
     { value: "feedback", label: "피드백" },
+    { value: "worksheets", label: "학습지" },
     ...(canSeeAll ? [{ value: "report", label: "리포트" }] : []),
   ];
 
@@ -55,7 +57,7 @@ export default function StudentWeek({ studentId, weekStart }) {
     >
       <WeekNav ws={ws} setWs={setWs} />
       <Segmented value={tab} options={tabs} onChange={setTab} />
-      {tab !== "report" && visibleCourses.length > 1 && (
+      {tab !== "report" && tab !== "worksheets" && visibleCourses.length > 1 && (
         <Row>
           {visibleCourses.map((c) => (
             <button
@@ -78,6 +80,8 @@ export default function StudentWeek({ studentId, weekStart }) {
         </Card>
       ) : data.loading && !data.data ? (
         <Loading />
+      ) : tab === "worksheets" ? (
+        <WeekWorksheets student={student} courseId={courseId} ws={ws} />
       ) : tab === "record" ? (
         <RecordsTab student={student} course={course} ws={ws} records={(data.data?.records || []).filter((r) => r.course_id === courseId)} canEdit={canEdit} reload={data.reload} />
       ) : tab === "feedback" ? (
@@ -633,6 +637,51 @@ function ReportTab({ student, mainCourse, courses, ws, data, reload }) {
         </Btn>
       </Row>
       {rep?.sent_at && <div style={{ fontSize: 12, color: T.sub, textAlign: "center" }}>마지막 전송: {new Date(rep.sent_at).toLocaleString("ko-KR")}</div>}
+    </>
+  );
+}
+
+// ------------------------------------------------------------------
+// 이번 주 학습지: 이 학생 화면에서 바로 사진을 올리고 결과를 봅니다.
+// ------------------------------------------------------------------
+function WeekWorksheets({ student, courseId, ws }) {
+  const nav = useNav();
+  const [adding, setAdding] = useState(false);
+  const we = addDays(ws, 6);
+  const d = useLoad(() => run(supabase.from("worksheet_uploads").select("*").eq("student_id", student.id).gte("date", ws).lte("date", we).order("date", { ascending: false })), [student.id, ws]);
+  const busy = (d.data || []).some((u) => u.status === "processing" || u.status === "pending");
+  useLiveRefresh("worksheet_uploads", busy, d.reload);
+  const today = todayISO();
+  return (
+    <>
+      <Btn onClick={() => setAdding(true)} style={{ width: "100%" }}>
+        + 학습지 사진 올리기
+      </Btn>
+      <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5 }}>
+        {student.name} 학생이 푼 학습지를 찍어 올리면 문제별로 분석해요. 확인을 마친 분석은 이번 주 피드백 AI 초안에 반영돼요.
+      </div>
+      <ErrorBox error={d.error} onRetry={() => d.reload()} />
+      {!d.data ? (
+        <Loading />
+      ) : d.data.length ? (
+        <UploadList uploads={d.data} onOpen={(u) => nav.push("worksheet", { uploadId: u.id })} />
+      ) : (
+        <Card>
+          <Empty>이번 주에 올린 학습지가 없어요</Empty>
+        </Card>
+      )}
+      {adding && (
+        <UploadSheet
+          studentId={student.id}
+          defaultCourseId={courseId}
+          defaultDate={today >= ws && today <= we ? today : ws}
+          onClose={() => setAdding(false)}
+          onDone={() => {
+            setAdding(false);
+            d.reload(true);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { callAI, compressImage } from "../lib.js";
 import { useBase } from "../store.jsx";
+import MathText from "../MathText.jsx";
 import { Btn, Chip, ErrorBox, Page, T, TextArea, useToast } from "../ui.jsx";
 
 // AI 도우미: 선생님이 말이나 사진으로 알려주면, Claude가 DB 구조에 맞게 정리해 "변경 제안"을 만듭니다.
@@ -168,7 +169,7 @@ export default function Assistant() {
       {msgs.map((m, i) => (
         <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 8 }}>
           <div style={{ maxWidth: "88%", background: m.role === "user" ? T.accent : T.panel, color: m.role === "user" ? "#fff" : T.ink, border: m.role === "user" ? 0 : `1px solid ${T.line}`, borderRadius: 14, padding: "10px 14px", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-            {m.text}
+            {m.role === "assistant" ? <MathText text={m.text} /> : m.text}
             {m.imageCount ? <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>사진 {m.imageCount}장</div> : null}
           </div>
           {m.proposal && <ProposalCard p={m.proposal} onApply={() => apply(i)} onReject={() => reject(i)} />}
@@ -188,6 +189,30 @@ export default function Assistant() {
   );
 }
 
+// 제안 값 보기 좋게: 단원 목록은 "이차곡선 → 벡터(공간벡터)", 목록은 쉼표, 그 외 객체는 "키: 값"
+function prettyValue(v) {
+  if (v == null) return "비움";
+  if (typeof v === "boolean") return v ? "예" : "아니오";
+  if (typeof v !== "object") return String(v);
+  if (Array.isArray(v)) {
+    if (!v.length) return "없음";
+    if (v.every((x) => typeof x !== "object")) return v.join(", ");
+    return v
+      .map((x) => {
+        const name = x.name || x.unit || x.label || x.num;
+        if (!name) return Object.entries(x).map(([k, y]) => `${k}: ${prettyValue(y)}`).join(" / ");
+        const extra = [x.topics?.length ? x.topics.join(", ") : null, x.date, x.answer, x.difficulty != null ? `난이도 ${x.difficulty}` : null, x.notes].filter(Boolean).join(" · ");
+        return extra ? `${name}(${extra})` : String(name);
+      })
+      .join(x0(v) ? " → " : ", ");
+  }
+  return Object.entries(v).map(([k, y]) => `${k}: ${prettyValue(y)}`).join(", ");
+}
+// 단원처럼 순서가 있는 목록이면 화살표로
+function x0(arr) {
+  return arr.every((x) => x && typeof x === "object" && "name" in x && !("date" in x));
+}
+
 function ProposalCard({ p, onApply, onReject }) {
   return (
     <div style={{ width: "100%", boxSizing: "border-box", background: T.panel, border: `2px solid ${p.state === "applied" ? T.ok : T.accent}`, borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -205,7 +230,7 @@ function ProposalCard({ p, onApply, onReject }) {
             {Object.entries(o.values || {}).map(([k, v]) => (
               <div key={k} style={{ fontSize: 12.5, lineHeight: 1.5, display: "flex", gap: 8 }}>
                 <span style={{ color: T.sub, flexShrink: 0, minWidth: 72 }}>{k}</span>
-                <span style={{ wordBreak: "break-word" }}>{typeof v === "string" ? v : JSON.stringify(v)}</span>
+                <span style={{ wordBreak: "break-word" }}>{prettyValue(v)}</span>
               </div>
             ))}
             {o.reason && <div style={{ fontSize: 12, color: T.sub }}>이유: {o.reason}</div>}

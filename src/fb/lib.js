@@ -95,6 +95,9 @@ export function daysBetween(a, b) {
 export async function callAI(action, payload) {
   const { data, error } = await supabase.functions.invoke("ai", { body: { action, ...payload } });
   if (error) {
+    if (error.name === "FunctionsFetchError" || /Failed to send a request/i.test(error.message || "")) {
+      throw new Error("AI 서버에 연결하지 못했어요. Supabase → Edge Functions에 'ai' 함수가 배포돼 있는지 확인해주세요. 배포했는데도 같다면 최신 ai 함수 코드로 다시 배포해주세요.");
+    }
     let msg = error.message;
     try {
       const body = await error.context?.json?.();
@@ -110,35 +113,72 @@ export async function callAI(action, payload) {
 
 // ------------------------------------------------------------------
 // 사진: 휴대폰 사진(수 MB)을 긴 변 2000px JPEG로 줄여서 올립니다.
+// 브라우저가 못 여는 사진(삼성 "고효율 사진" HEIC 등)은 원본 그대로 올리거나, 안 되면 이유를 알려줍니다.
 // ------------------------------------------------------------------
-export async function compressImage(file, maxSide = 2000, quality = 0.85) {
+const AI_OK_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+async function decode(file) {
+  // 1) createImageBitmap: 대부분의 안드로이드·데스크톱 크롬에서 가장 잘 열림(사진 회전 정보도 반영)
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      /* 다음 방법 */
+    }
+  }
+  // 2) <img>로 열기
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => {
+    return await new Promise((res, rej) => {
       const im = new Image();
       im.onload = () => res(im);
-      im.onerror = () => rej(new Error("사진을 읽지 못했어요."));
+      im.onerror = () => rej(new Error("decode"));
       im.src = url;
     });
-    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-    const w = Math.round(img.naturalWidth * scale);
-    const h = Math.round(img.naturalHeight * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    return await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", quality));
   } finally {
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
 
+function isHeic(file) {
+  return /hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
+}
+
+export async function compressImage(file, maxSide = 2000, quality = 0.85) {
+  if (isHeic(file)) {
+    throw new Error("HEIC(고효율 사진) 형식이라 열 수 없어요. 카메라 설정 → '고효율 사진'을 끄고 다시 찍거나, 사진을 캡처해서 올려주세요.");
+  }
+  let img;
+  try {
+    img = await decode(file);
+  } catch {
+    // 열지는 못했지만 AI가 읽을 수 있는 형식이고 크기가 적당하면 원본 그대로 보냅니다.
+    if (AI_OK_TYPES.includes(file.type) && file.size <= 3.5 * 1024 * 1024) return file;
+    throw new Error(
+      `사진을 열지 못했어요${file.type ? ` (${file.type})` : ""}. 갤러리 앱에서 사진을 한 번 열어 원본을 내려받은 뒤 다시 고르거나, 카메라로 바로 찍어서 올려주세요.`
+    );
+  }
+  const w0 = img.naturalWidth || img.width;
+  const h0 = img.naturalHeight || img.height;
+  const scale = Math.min(1, maxSide / Math.max(w0, h0));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(w0 * scale);
+  canvas.height = Math.round(h0 * scale);
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  img.close?.();
+  const blob = await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", quality));
+  if (!blob) throw new Error("사진을 줄이지 못했어요. 다른 사진으로 다시 시도해주세요.");
+  return blob;
+}
+
+const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 export async function uploadImages(files, folder) {
   const paths = [];
   for (const f of files) {
     const blob = await compressImage(f);
-    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-    await run(supabase.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg" }));
+    const type = AI_OK_TYPES.includes(blob.type) ? blob.type : "image/jpeg";
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${EXT[type]}`;
+    await run(supabase.storage.from(BUCKET).upload(path, blob, { contentType: type }));
     paths.push(path);
   }
   return paths;

@@ -14,9 +14,12 @@ const MODEL_TEXT = Deno.env.get("ANTHROPIC_MODEL_TEXT") ?? "claude-sonnet-5-5";
 const MODEL_VISION = Deno.env.get("ANTHROPIC_MODEL_VISION") ?? "claude-opus-5-5";
 const BUCKET = "fb-images";
 
+// 최신 supabase-js는 x-supabase-client-* 같은 헤더를 더 보냅니다. 허용 목록에 없으면
+// 브라우저가 요청을 막아 "Failed to send a request to the Edge Function"이 나므로 넉넉히 허용합니다.
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-region",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -41,7 +44,11 @@ function json(body: unknown, status = 200) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") {
+    // 브라우저가 묻는 헤더를 그대로 허용해 줍니다(앞으로 헤더가 더 늘어나도 안전).
+    const asked = req.headers.get("Access-Control-Request-Headers");
+    return new Response("ok", { headers: { ...CORS, ...(asked ? { "Access-Control-Allow-Headers": asked } : {}) } });
+  }
   try {
     const auth = req.headers.get("Authorization");
     if (!auth) return json({ error: "로그인이 필요해요." }, 401);
@@ -92,30 +99,48 @@ async function claude(opts: {
   tool: { name: string; description: string; input_schema: Record<string, unknown> };
   maxTokens?: number;
 }): Promise<any> {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 4000,
-      system: opts.system,
-      tools: [opts.tool],
-      tool_choice: { type: "tool", name: opts.tool.name },
-      messages: [{ role: "user", content: opts.content }],
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`AI 호출 실패 (${res.status}): ${text.slice(0, 300)}`);
+  // 일부 모델은 특정 도구 호출 강제(tool_choice: tool)를 지원하지 않습니다.
+  // 먼저 강제로 시도하고, 거절되면 "auto"로 바꾸고 프롬프트로 도구 사용을 요구해 다시 보냅니다.
+  const call = async (forced: boolean) => {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model,
+        max_tokens: opts.maxTokens ?? 4000,
+        system: forced ? opts.system : `${opts.system}\n\n결과는 반드시 ${opts.tool.name} 도구를 한 번 호출해서 제출하세요. 도구 밖에 설명을 쓰지 마세요.`,
+        tools: [opts.tool],
+        tool_choice: forced ? { type: "tool", name: opts.tool.name } : { type: "auto" },
+        messages: [{ role: "user", content: opts.content }],
+      }),
+    });
+    const bodyText = await res.text();
+    return { ok: res.ok, status: res.status, bodyText };
+  };
+
+  let r = await call(true);
+  if (!r.ok && r.status === 400 && /tool_choice/i.test(r.bodyText)) r = await call(false);
+  if (!r.ok) throw new Error(`AI 호출 실패 (${r.status}): ${r.bodyText.slice(0, 300)}`);
+
+  const data = JSON.parse(r.bodyText);
+  const block = (data.content ?? []).find((b: any) => b.type === "tool_use" && b.name === opts.tool.name);
+  if (block) return block.input;
+  // 도구 대신 글로 JSON을 돌려준 경우를 대비해 본문에서 JSON을 찾아봅니다.
+  const textOut = (data.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+  const m = textOut.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      return JSON.parse(m[0]);
+    } catch {
+      /* 아래 오류로 */
+    }
   }
-  const data = await res.json();
-  const block = (data.content ?? []).find((b: any) => b.type === "tool_use");
-  if (!block) throw new Error("AI 응답에서 결과를 찾지 못했어요.");
-  return block.input;
+  if (data.stop_reason === "max_tokens") throw new Error("AI 답이 너무 길어 중간에 끊겼어요. 사진 수를 줄여 다시 시도해주세요.");
+  throw new Error("AI 응답에서 결과를 찾지 못했어요. 다시 분석을 눌러주세요.");
 }
 
 function text(t: string) {
@@ -151,7 +176,8 @@ async function loadImages(db: SupabaseClient, paths: string[]) {
   for (let i = 0; i < paths.length; i++) {
     const { data, error } = await db.storage.from(BUCKET).download(paths[i]);
     if (error || !data) throw new Error(`사진을 불러오지 못했어요: ${paths[i]}`);
-    const mt = paths[i].toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    const lower = paths[i].toLowerCase();
+    const mt = lower.endsWith(".png") ? "image/png" : lower.endsWith(".webp") ? "image/webp" : "image/jpeg";
     out.push(text(`[사진 ${i + 1} / page_index=${i}]`));
     out.push({ type: "image", source: { type: "base64", media_type: mt, data: b64(await data.arrayBuffer()) } });
   }
@@ -284,6 +310,7 @@ async function draftFeedback(ctx: Ctx, body: any) {
 - 학생 이름은 쓰지 않습니다.
 - 아래 "학부모 성향 메모"는 표현의 톤을 맞추는 데만 쓰고, 그 내용 자체를 피드백에 절대 언급하거나 암시하지 않습니다.
 - 선생님 문체 예시의 말투와 길이를 따릅니다.
+- 이 글은 이미지로 학부모님께 나가므로 LaTeX($, \\frac 등)를 쓰지 않고, 수식이 필요하면 "f'(x)=0", "x²"처럼 읽기 쉬운 평문으로 씁니다.
 
 [선생님 문체 예시]
 ${mask(styleText)}
@@ -327,6 +354,7 @@ const PROBLEM_SCHEMA = {
   type: "object",
   properties: {
     num: { type: "string", description: "문제 번호(사진에 적힌 그대로)" },
+    problem_text: { type: "string", description: "인쇄된 문제 본문(수식은 LaTeX, $로 감쌈)" },
     page_index: { type: "integer", description: "몇 번째 사진인지(0부터)" },
     bbox: {
       type: "object",
@@ -378,7 +406,9 @@ async function analyzeWorksheet(ctx: Ctx, uploadId: string) {
 - evidence는 반드시 "사진에서 실제로 본 것(obs)"과 "그래서 내린 판단(judge)"의 짝으로 씁니다. 보이지 않는 것을 추측해 단정하지 않습니다.
 - 정답지가 있으면 그것을 기준으로 채점하고, 없으면 직접 풀어 확인합니다. 확신이 없으면 verdict를 unknown으로 둡니다.
 - 글씨가 겹치거나 의도가 불분명한 부분은 uncertain에 구체적으로 적습니다.
-- 학습지 전체 요약(summary)과 반복되는 약점 패턴 태그(patterns, 2~8자 짧은 말 1~3개)도 냅니다.`;
+- 학습지 전체 요약(summary)과 반복되는 약점 패턴 태그(patterns, 2~8자 짧은 말 1~3개)도 냅니다.
+- problem_text에는 인쇄된 문제 본문을 그대로 옮겨 적습니다(보기 포함).
+수식 표기 규칙: 모든 수식·기호는 LaTeX로 쓰고 $로 감쌉니다. 문장 안 수식은 $\\dfrac{f(3)-f(2)}{3-2}$, 한 줄 전체를 차지하는 식은 $$...$$. 문장 안의 분수는 읽기 쉽게 \\dfrac을 씁니다. 일반 텍스트로 (f(3)-f(2))/(3-2)처럼 쓰지 않습니다. 한국어 문장은 $ 밖에 씁니다.`;
 
   const out = await claude({
     model: MODEL_VISION,
@@ -405,6 +435,7 @@ async function analyzeWorksheet(ctx: Ctx, uploadId: string) {
     upload_id: uploadId,
     student_id: up.student_id,
     num: p.num,
+    problem_text: p.problem_text || null,
     page_index: p.page_index ?? 0,
     bbox: p.bbox ?? null,
     ai_verdict: p.verdict,
@@ -449,7 +480,8 @@ async function analyzeExam(ctx: Ctx, paperId: string) {
 - 난이도 기준: 1 교과서 기본, 2 교과서 응용, 3 중간 난이도 문제집 수준, 4 상위권 변별, 5 최고난도(킬러).
 - source_kind는 교과서 | 교과서 변형 | 부교재 | 외부 | 신유형 중 하나로 추정합니다(학교 시험이 아니면 기출 변형/신유형 등으로).
 - ${keepText ? "original_text에는 문항 본문을 텍스트로 옮겨 적습니다(수식은 읽을 수 있게 평문으로)." : "original_text는 빈 문자열로 둡니다."}
-- 시험 전체의 특징을 summary에 3~5문장으로 씁니다.`;
+- 시험 전체의 특징을 summary에 3~5문장으로 씁니다.
+수식 표기 규칙: 모든 수식·기호는 LaTeX로 쓰고 $로 감쌉니다. 문장 안 수식은 $\\dfrac{f(3)-f(2)}{3-2}$, 한 줄 전체를 차지하는 식은 $$...$$. 문장 안의 분수는 읽기 쉽게 \\dfrac을 씁니다. 일반 텍스트로 (f(3)-f(2))/(3-2)처럼 쓰지 않습니다. 한국어 문장은 $ 밖에 씁니다.`;
 
   const out = await claude({
     model: MODEL_VISION,
@@ -858,6 +890,7 @@ ${ASSISTANT_SCHEMA_DOC}
 - 애매하면 제안하기 전에 짧게 질문합니다.
 - 변경이 필요하면 propose_changes를 한 번 호출하고, 마지막에 한국어로 무엇을 제안했는지 2~4문장으로 말합니다. 단순 질문에는 DB를 찾아보고 답만 합니다.
 - 학생 정보 변경은 students의 허용된 칸만, 메모는 추가만 할 수 있습니다.
+- 답변에 수식이 들어가면 $...$로 감싼 LaTeX로 씁니다(앱이 수식으로 그려줍니다).
 - 요청을 지금 구조로 제대로 담을 수 없으면(맞는 칸·표·화면이 없음) 억지로 notes 같은 곳에 우겨넣지 말고 report_limitation으로 개선 요청을 남긴 뒤, 선생님께 "개선 요청함에 남겨뒀다"고 알리고 지금 할 수 있는 임시 방법이 있으면 함께 말합니다.`;
 
   let proposal: any = null;

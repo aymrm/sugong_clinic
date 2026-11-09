@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNav } from "../FeedbackApp.jsx";
 import { BUCKET, callAI, run, shortDate, signedUrl, supabase, todayISO, uploadImages, useLoad } from "../lib.js";
 import { useBase } from "../store.jsx";
+import MathText from "../MathText.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Loading, Notice, Page, Row, Select, Sheet, T, TextArea, Toggle, useToast, verdictChip } from "../ui.jsx";
 
 const STATUS = { pending: ["대기", "gray"], processing: ["분석 중", "partial"], done: ["분석 완료", "ok"], error: ["실패", "wrong"] };
@@ -35,7 +36,11 @@ export default function Worksheets() {
   useLiveRefresh("worksheet_uploads", busy, list.reload);
 
   return (
-    <Page title="학습지 분석" sub="풀이 사진을 올리면 문제별로 정리해요" right={<Btn size="sm" onClick={() => setAdding(true)}>+ 사진</Btn>}>
+    <Page title="학습지 분석" sub="풀이 사진을 올리면 문제별로 정리해요">
+      <Btn onClick={() => setAdding(true)} style={{ width: "100%" }}>
+        + 학습지 사진 올리기
+      </Btn>
+      <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5 }}>올릴 때 어느 학생이 푼 건지 고르면 돼요. 학생 화면의 학습지 탭에서 올리면 학생이 자동으로 정해져요.</div>
       <ErrorBox error={list.error} onRetry={() => list.reload()} />
       {list.loading && !list.data ? (
         <Loading />
@@ -95,13 +100,13 @@ export function UploadList({ uploads, onOpen, showStudent }) {
   );
 }
 
-export function UploadSheet({ studentId, onClose, onDone }) {
+export function UploadSheet({ studentId, defaultCourseId, defaultDate, onClose, onDone }) {
   const base = useBase();
   const toast = useToast();
   const students = base.isAdmin ? base.students.filter((s) => !s.withdrawn) : base.myStudents;
   const [sid, setSid] = useState(studentId || students[0]?.id || "");
   const courses = sid ? base.coursesOfStudent(sid) : [];
-  const [f, setF] = useState({ course_id: "", date: todayISO(), material: "", range_text: "", answer_key_id: "" });
+  const [f, setF] = useState({ course_id: defaultCourseId || "", date: defaultDate || todayISO(), material: "", range_text: "", answer_key_id: "" });
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState(null);
@@ -135,7 +140,7 @@ export function UploadSheet({ studentId, onClose, onDone }) {
     <Sheet open title="학습지 올리기" onClose={onClose} footer={<Btn onClick={submit} disabled={!!busy || !sid || !files.length} style={{ width: "100%" }}>{busy || `사진 ${files.length}장 분석하기`}</Btn>}>
       <ErrorBox error={err} />
       {!studentId && (
-        <Field label="학생">
+        <Field label="누가 푼 학습지인가요?">
           <Select value={sid} onChange={(e) => setSid(e.target.value)} options={students.map((s) => ({ value: s.id, label: `${s.name}${s.school ? ` (${s.school})` : ""}` }))} />
         </Field>
       )}
@@ -358,7 +363,7 @@ export function WorksheetDetail({ uploadId }) {
                 {right} / {probs.length}
               </span>
             </Row>
-            <div style={{ fontSize: 14.5, lineHeight: 1.55, fontWeight: 600 }}>{up.summary}</div>
+            <div style={{ fontSize: 14.5, lineHeight: 1.55, fontWeight: 600 }}><MathText text={up.summary} /></div>
             {up.patterns?.length > 0 && (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {up.patterns.map((p) => (
@@ -410,7 +415,7 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
       <button type="button" onClick={onToggle} aria-expanded={open} style={{ width: "100%", minHeight: 56, border: 0, background: T.panel, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", textAlign: "left", cursor: "pointer", fontFamily: T.font }}>
         <span style={{ flexShrink: 0, width: 44, fontSize: 13, fontWeight: 700 }}>{p.num}</span>
         {verdictChip(p.verdict)}
-        <span style={{ flex: 1, fontSize: 13.5, lineHeight: 1.45, color: T.ink }}>{p.summary}</span>
+        <span style={{ flex: 1, fontSize: 13.5, lineHeight: 1.45, color: T.ink }}><MathText text={p.summary} /></span>
         {p.uncertain && <span aria-label="판독 불확실 있음" style={{ width: 8, height: 8, borderRadius: 4, background: "#D97706", flexShrink: 0 }} />}
         {p.reviewed && <span aria-label="확인함" style={{ color: T.ok, fontSize: 14, flexShrink: 0 }}>✓</span>}
         <span aria-hidden="true" style={{ color: T.sub, fontSize: 12, flexShrink: 0 }}>{open ? "▲" : "▼"}</span>
@@ -418,6 +423,7 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
       {open && (
         <div style={{ padding: "4px 14px 16px", display: "flex", flexDirection: "column", gap: 14, background: T.soft }}>
           {imagePath && <CropImage path={imagePath} bbox={p.bbox} alt={`${p.num}번 문제와 풀이`} />}
+          <Block label="문제" value={p.problem_text} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
             <Mini label="학생 답" value={p.student_answer} />
             <Mini label="정답" value={p.correct_answer} />
@@ -430,11 +436,11 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
                 <div key={i} style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Tag>관찰</Tag>
-                    <span style={{ fontSize: 13, lineHeight: 1.5 }}>{ev.obs}</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.5 }}><MathText text={ev.obs} /></span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Tag accent>판단</Tag>
-                    <span style={{ fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>{ev.judge}</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}><MathText text={ev.judge} /></span>
                   </div>
                 </div>
               ))}
@@ -442,7 +448,7 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
           )}
           <Block label="이해한 부분" value={p.understood} />
           <Block label="추가로 설명하면 좋을 것" value={p.suggest} />
-          {p.uncertain && <Notice>판독 불확실: {p.uncertain}</Notice>}
+          {p.uncertain && <Notice>판독 불확실: <MathText text={p.uncertain} /></Notice>}
           {p.teacher_note && <Block label="선생님 메모" value={p.teacher_note} />}
           <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6 }}>
@@ -479,7 +485,7 @@ function Mini({ label, value }) {
   return (
     <div style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: "8px 12px" }}>
       <div style={{ fontSize: 11.5, color: T.sub }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 700 }}>{value || "–"}</div>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>{value ? <MathText text={value} /> : "–"}</div>
     </div>
   );
 }
@@ -488,7 +494,7 @@ function Block({ label, value }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>{label}</div>
-      <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{value}</div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.7 }}><MathText text={value} /></div>
     </div>
   );
 }
@@ -543,10 +549,14 @@ function CropImage({ path, bbox, alt }) {
 }
 
 function EditProblemSheet({ p, onClose, onSave }) {
-  const [f, setF] = useState({ summary: p.summary || "", student_answer: p.student_answer || "", correct_answer: p.correct_answer || "", reading: p.reading || "", teacher_note: p.teacher_note || "" });
+  const [f, setF] = useState({ problem_text: p.problem_text || "", summary: p.summary || "", student_answer: p.student_answer || "", correct_answer: p.correct_answer || "", reading: p.reading || "", teacher_note: p.teacher_note || "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <Sheet open title={`${p.num}번 판독 고치기`} onClose={onClose} footer={<Btn onClick={() => onSave(f)} style={{ width: "100%" }}>저장</Btn>}>
+      <Field label="문제" hint="수식은 $x^2$ 처럼 $로 감싸면 보기 좋게 표시돼요">
+        <TextArea rows={3} value={f.problem_text} onChange={set("problem_text")} />
+        {f.problem_text && <div style={{ fontSize: 13.5, background: T.soft, borderRadius: 8, padding: "8px 10px" }}><MathText text={f.problem_text} /></div>}
+      </Field>
       <Field label="한 줄 판단">
         <Input value={f.summary} onChange={set("summary")} />
       </Field>
@@ -560,6 +570,7 @@ function EditProblemSheet({ p, onClose, onSave }) {
       </Grid2>
       <Field label="판독한 풀이">
         <TextArea rows={4} value={f.reading} onChange={set("reading")} />
+        {f.reading && <div style={{ fontSize: 13.5, background: T.soft, borderRadius: 8, padding: "8px 10px" }}><MathText text={f.reading} /></div>}
       </Field>
       <Field label="선생님 메모">
         <TextArea rows={2} value={f.teacher_note} onChange={set("teacher_note")} />
