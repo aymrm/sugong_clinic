@@ -109,7 +109,7 @@ export default function MathText({ text, style }) {
           return <span key={i}>{p.raw}</span>;
         }
         return p.display ? (
-          <span key={i} style={{ display: "block", overflowX: "auto", overflowY: "hidden", padding: "4px 0" }} dangerouslySetInnerHTML={{ __html: html }} />
+          <span key={i} style={{ display: "block", overflowX: "auto", overflowY: "hidden", padding: "6px 0", scrollbarWidth: "thin" }} dangerouslySetInnerHTML={{ __html: html }} />
         ) : (
           <span key={i} dangerouslySetInnerHTML={{ __html: html }} />
         );
@@ -208,7 +208,7 @@ export function StepsText({ text }) {
           <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 11, background: "#EAEEFC", color: "#2848C9", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", top: -2 }}>
             {i + 1}
           </span>
-          <span style={{ minWidth: 0, overflowX: "auto" }}>
+          <span style={{ minWidth: 0, maxWidth: "100%", overflowX: "auto", overflowY: "hidden", padding: "6px 2px", margin: "-6px 0", scrollbarWidth: "thin" }}>
             <MathText text={st} />
           </span>
         </li>
