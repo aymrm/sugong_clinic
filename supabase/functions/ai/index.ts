@@ -99,30 +99,48 @@ async function claude(opts: {
   tool: { name: string; description: string; input_schema: Record<string, unknown> };
   maxTokens?: number;
 }): Promise<any> {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 4000,
-      system: opts.system,
-      tools: [opts.tool],
-      tool_choice: { type: "tool", name: opts.tool.name },
-      messages: [{ role: "user", content: opts.content }],
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`AI 호출 실패 (${res.status}): ${text.slice(0, 300)}`);
+  // 일부 모델은 특정 도구 호출 강제(tool_choice: tool)를 지원하지 않습니다.
+  // 먼저 강제로 시도하고, 거절되면 "auto"로 바꾸고 프롬프트로 도구 사용을 요구해 다시 보냅니다.
+  const call = async (forced: boolean) => {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model,
+        max_tokens: opts.maxTokens ?? 4000,
+        system: forced ? opts.system : `${opts.system}\n\n결과는 반드시 ${opts.tool.name} 도구를 한 번 호출해서 제출하세요. 도구 밖에 설명을 쓰지 마세요.`,
+        tools: [opts.tool],
+        tool_choice: forced ? { type: "tool", name: opts.tool.name } : { type: "auto" },
+        messages: [{ role: "user", content: opts.content }],
+      }),
+    });
+    const bodyText = await res.text();
+    return { ok: res.ok, status: res.status, bodyText };
+  };
+
+  let r = await call(true);
+  if (!r.ok && r.status === 400 && /tool_choice/i.test(r.bodyText)) r = await call(false);
+  if (!r.ok) throw new Error(`AI 호출 실패 (${r.status}): ${r.bodyText.slice(0, 300)}`);
+
+  const data = JSON.parse(r.bodyText);
+  const block = (data.content ?? []).find((b: any) => b.type === "tool_use" && b.name === opts.tool.name);
+  if (block) return block.input;
+  // 도구 대신 글로 JSON을 돌려준 경우를 대비해 본문에서 JSON을 찾아봅니다.
+  const textOut = (data.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+  const m = textOut.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      return JSON.parse(m[0]);
+    } catch {
+      /* 아래 오류로 */
+    }
   }
-  const data = await res.json();
-  const block = (data.content ?? []).find((b: any) => b.type === "tool_use");
-  if (!block) throw new Error("AI 응답에서 결과를 찾지 못했어요.");
-  return block.input;
+  if (data.stop_reason === "max_tokens") throw new Error("AI 답이 너무 길어 중간에 끊겼어요. 사진 수를 줄여 다시 시도해주세요.");
+  throw new Error("AI 응답에서 결과를 찾지 못했어요. 다시 분석을 눌러주세요.");
 }
 
 function text(t: string) {
