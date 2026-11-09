@@ -13,10 +13,10 @@ export default defineConfig({
       // 접속 경로에 따라 <link rel="manifest">를 바꿔치기합니다 — 그래야 "/에서 설치"와 "/teacher에서 설치"가
       // 각자 올바른 화면으로 열려요(예전엔 이 매니페스트 하나만 있어서 어디서 설치하든 항상 /teacher로 열렸습니다).
       manifest: {
-        name: "클리닉실 관리 · 담당 선생님",
-        short_name: "담당 선생님",
-        description: "오늘의 클리닉 명단 확인, 숙제 내주기, 결과 확인",
-        start_url: "/teacher",
+        name: "주간 피드백 · 학습 관리",
+        short_name: "피드백",
+        description: "주간 피드백 작성, 학습지 분석, 상담 준비",
+        start_url: "/",
         scope: "/",
         display: "standalone",
         background_color: "#F4F6F5",
