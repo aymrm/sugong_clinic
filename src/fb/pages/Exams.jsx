@@ -4,7 +4,7 @@ import { BUCKET, callAI, run, supabase, uploadImages, useLoad } from "../lib.js"
 import { useBase } from "../store.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Loading, Notice, Page, Row, SectionTitle, Segmented, Select, Sheet, T, TextArea, useToast } from "../ui.jsx";
 import { useLiveRefresh } from "./Worksheets.jsx";
-import MathText from "../MathText.jsx";
+import MathText, { ProblemText } from "../MathText.jsx";
 
 const STATUS = { pending: ["대기", "gray"], processing: ["분석 중", "partial"], done: ["분석 완료", "ok"], error: ["실패", "wrong"] };
 const thisYear = new Date().getFullYear();
@@ -543,7 +543,7 @@ export function PaperDetail({ paperId }) {
                       {it.original_text && (
                         <details>
                           <summary style={{ cursor: "pointer", color: T.accent }}>원문</summary>
-                          <div style={{ maxWidth: 300, lineHeight: 1.7 }}><MathText text={it.original_text} /></div>
+                          <div style={{ minWidth: 260, maxWidth: 420, marginTop: 6 }}><ProblemText text={it.original_text} /></div>
                         </details>
                       )}
                     </td>

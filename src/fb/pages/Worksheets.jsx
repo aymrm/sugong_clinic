@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNav } from "../FeedbackApp.jsx";
 import { BUCKET, callAI, run, shortDate, signedUrl, supabase, todayISO, uploadImages, useLoad } from "../lib.js";
 import { useBase } from "../store.jsx";
-import MathText from "../MathText.jsx";
+import MathText, { ProblemText } from "../MathText.jsx";
 import { Btn, Card, Chip, Empty, ErrorBox, Field, Grid2, Input, Loading, Notice, Page, Row, Select, Sheet, T, TextArea, Toggle, useToast, verdictChip } from "../ui.jsx";
 
 const STATUS = { pending: ["대기", "gray"], processing: ["분석 중", "partial"], done: ["분석 완료", "ok"], error: ["실패", "wrong"] };
@@ -423,7 +423,12 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
       {open && (
         <div style={{ padding: "4px 14px 16px", display: "flex", flexDirection: "column", gap: 14, background: T.soft }}>
           {imagePath && <CropImage path={imagePath} bbox={p.bbox} alt={`${p.num}번 문제와 풀이`} />}
-          <Block label="문제" value={p.problem_text} />
+          {p.problem_text && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>문제</div>
+              <ProblemText text={p.problem_text} />
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
             <Mini label="학생 답" value={p.student_answer} />
             <Mini label="정답" value={p.correct_answer} />
@@ -436,11 +441,11 @@ function ProblemRow({ p, first, open, onToggle, imagePath, onPatch, onEdit }) {
                 <div key={i} style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Tag>관찰</Tag>
-                    <span style={{ fontSize: 13, lineHeight: 1.5 }}><MathText text={ev.obs} /></span>
+                    <span style={{ fontSize: 14, lineHeight: 1.7 }}><MathText text={ev.obs} /></span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Tag accent>판단</Tag>
-                    <span style={{ fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}><MathText text={ev.judge} /></span>
+                    <span style={{ fontSize: 14, lineHeight: 1.7, fontWeight: 500 }}><MathText text={ev.judge} /></span>
                   </div>
                 </div>
               ))}
@@ -494,7 +499,7 @@ function Block({ label, value }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: T.sub }}>{label}</div>
-      <div style={{ fontSize: 13.5, lineHeight: 1.7 }}><MathText text={value} /></div>
+      <div style={{ fontSize: 14.5, lineHeight: 1.8 }}><MathText text={value} /></div>
     </div>
   );
 }

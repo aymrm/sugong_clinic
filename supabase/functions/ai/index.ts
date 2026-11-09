@@ -407,7 +407,8 @@ async function analyzeWorksheet(ctx: Ctx, uploadId: string) {
 - 정답지가 있으면 그것을 기준으로 채점하고, 없으면 직접 풀어 확인합니다. 확신이 없으면 verdict를 unknown으로 둡니다.
 - 글씨가 겹치거나 의도가 불분명한 부분은 uncertain에 구체적으로 적습니다.
 - 학습지 전체 요약(summary)과 반복되는 약점 패턴 태그(patterns, 2~8자 짧은 말 1~3개)도 냅니다.
-- problem_text에는 인쇄된 문제 본문을 그대로 옮겨 적습니다(보기 포함).
+- problem_text에는 인쇄된 문제 본문을 그대로 옮겨 적습니다. 본문, "(단, …)" 조건, 보기 ①~⑤는 각각 줄을 바꿔 씁니다(보기는 한 줄에 하나). 그림이 있으면 [그림: 무엇이 그려져 있는지 한 줄 설명]으로 적습니다.
+- 객관식이면 student_answer와 correct_answer에 번호와 내용을 함께 씁니다(예: ④ $\\beta<\\gamma<\\alpha$).
 수식 표기 규칙: 모든 수식·기호는 LaTeX로 쓰고 $로 감쌉니다. 문장 안 수식은 $\\dfrac{f(3)-f(2)}{3-2}$, 한 줄 전체를 차지하는 식은 $$...$$. 문장 안의 분수는 읽기 쉽게 \\dfrac을 씁니다. 일반 텍스트로 (f(3)-f(2))/(3-2)처럼 쓰지 않습니다. 한국어 문장은 $ 밖에 씁니다.`;
 
   const out = await claude({

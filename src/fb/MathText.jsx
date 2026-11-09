@@ -30,8 +30,18 @@ function injectCss(href) {
   document.head.appendChild(link);
 }
 
+function injectSizeFix() {
+  if (document.querySelector("style[data-katex-fix]")) return;
+  const st = document.createElement("style");
+  st.dataset.katexFix = "1";
+  // KaTeX 기본 크기(1.21em)는 한글보다 커서 줄이 들쭉날쭉해 보입니다.
+  st.textContent = ".katex{font-size:1.04em}.katex-display{margin:.35em 0}.katex-display>.katex{font-size:1.1em}";
+  document.head.appendChild(st);
+}
+
 export function loadKatex() {
   if (typeof window === "undefined") return Promise.resolve(null);
+  injectSizeFix();
   if (window.katex) return Promise.resolve(window.katex);
   if (loading) return loading;
   const bases = window.__KATEX_BASE ? [window.__KATEX_BASE] : ["/katex", KATEX_CDN];
@@ -92,7 +102,9 @@ export default function MathText({ text, style }) {
         let html;
         try {
           // trust:false(기본) — 링크·스크립트 같은 위험한 명령은 그리지 않습니다.
-          html = katex.renderToString(p.v, { displayMode: p.display, throwOnError: false, strict: "ignore" });
+          // 문장 안 분수는 작게 보여서 \dfrac(크게)로 바꿉니다.
+          const tex = p.display ? p.v : p.v.replace(/\\frac(?=\s*\{)/g, "\\dfrac");
+          html = katex.renderToString(tex, { displayMode: p.display, throwOnError: false, strict: "ignore" });
         } catch {
           return <span key={i}>{p.raw}</span>;
         }
@@ -103,5 +115,59 @@ export default function MathText({ text, style }) {
         );
       })}
     </span>
+  );
+}
+
+// 문제 본문을 시험지처럼: 본문, (단, …) 조건 줄, 보기 ①~⑤를 칸으로 나눠 보여줍니다.
+const CHOICES = "①②③④⑤⑥⑦⑧⑨⑩";
+export function splitProblem(text) {
+  const str = String(text || "");
+  const idx = [...str].findIndex((ch) => CHOICES.includes(ch));
+  // 보기 기호가 3개 이상일 때만 보기로 봅니다(본문 속 ① 언급과 구분).
+  const count = [...str].filter((ch) => CHOICES.includes(ch)).length;
+  let body = str;
+  let choices = [];
+  if (idx >= 0 && count >= 3) {
+    const chars = [...str];
+    body = chars.slice(0, idx).join("").trim();
+    const rest = chars.slice(idx).join("");
+    choices = rest
+      .split(new RegExp(`(?=[${CHOICES}])`))
+      .map((c) => c.trim())
+      .filter(Boolean);
+  }
+  // "(단, …)" 조건은 따로 떼어 냅니다.
+  let condition = "";
+  const m = body.match(/\s*(\(\s*단[,\s][\s\S]*\))\s*$/);
+  if (m) {
+    condition = m[1];
+    body = body.slice(0, m.index).trim();
+  }
+  return { body, condition, choices };
+}
+
+export function ProblemText({ text }) {
+  if (!text) return null;
+  const { body, condition, choices } = splitProblem(text);
+  return (
+    <div style={{ background: "#fff", border: "1px solid #E4E4DF", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 15, lineHeight: 1.85, color: "#1C1C1E" }}>
+      <div>
+        <MathText text={body} />
+      </div>
+      {condition && (
+        <div style={{ fontSize: 14, color: "#4A4A46" }}>
+          <MathText text={condition} />
+        </div>
+      )}
+      {choices.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "6px 16px", borderTop: "1px dashed #E4E4DF", paddingTop: 10 }}>
+          {choices.map((c, i) => (
+            <div key={i}>
+              <MathText text={c} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
