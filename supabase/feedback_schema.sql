@@ -516,3 +516,6 @@ create policy "dev req insert" on dev_requests for insert with check (is_onboard
 create policy "dev req select" on dev_requests for select using (is_onboarded());
 create policy "dev req update" on dev_requests for update using (is_admin() or created_by = my_teacher_id()) with check (is_admin() or created_by = my_teacher_id());
 create policy "dev req delete" on dev_requests for delete using (is_admin());
+
+-- 학습지 문제 본문(수식은 LaTeX: $...$). 앱에서 KaTeX로 실제 문제처럼 보여줍니다.
+alter table worksheet_problems add column if not exists problem_text text;

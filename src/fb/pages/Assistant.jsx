@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { callAI, compressImage } from "../lib.js";
 import { useBase } from "../store.jsx";
+import MathText from "../MathText.jsx";
 import { Btn, Chip, ErrorBox, Page, T, TextArea, useToast } from "../ui.jsx";
 
 // AI 도우미: 선생님이 말이나 사진으로 알려주면, Claude가 DB 구조에 맞게 정리해 "변경 제안"을 만듭니다.
@@ -168,7 +169,7 @@ export default function Assistant() {
       {msgs.map((m, i) => (
         <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 8 }}>
           <div style={{ maxWidth: "88%", background: m.role === "user" ? T.accent : T.panel, color: m.role === "user" ? "#fff" : T.ink, border: m.role === "user" ? 0 : `1px solid ${T.line}`, borderRadius: 14, padding: "10px 14px", fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-            {m.text}
+            {m.role === "assistant" ? <MathText text={m.text} /> : m.text}
             {m.imageCount ? <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>사진 {m.imageCount}장</div> : null}
           </div>
           {m.proposal && <ProposalCard p={m.proposal} onApply={() => apply(i)} onReject={() => reject(i)} />}

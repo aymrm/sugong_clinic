@@ -310,6 +310,7 @@ async function draftFeedback(ctx: Ctx, body: any) {
 - 학생 이름은 쓰지 않습니다.
 - 아래 "학부모 성향 메모"는 표현의 톤을 맞추는 데만 쓰고, 그 내용 자체를 피드백에 절대 언급하거나 암시하지 않습니다.
 - 선생님 문체 예시의 말투와 길이를 따릅니다.
+- 이 글은 이미지로 학부모님께 나가므로 LaTeX($, \\frac 등)를 쓰지 않고, 수식이 필요하면 "f'(x)=0", "x²"처럼 읽기 쉬운 평문으로 씁니다.
 
 [선생님 문체 예시]
 ${mask(styleText)}
@@ -353,6 +354,7 @@ const PROBLEM_SCHEMA = {
   type: "object",
   properties: {
     num: { type: "string", description: "문제 번호(사진에 적힌 그대로)" },
+    problem_text: { type: "string", description: "인쇄된 문제 본문(수식은 LaTeX, $로 감쌈)" },
     page_index: { type: "integer", description: "몇 번째 사진인지(0부터)" },
     bbox: {
       type: "object",
@@ -404,7 +406,9 @@ async function analyzeWorksheet(ctx: Ctx, uploadId: string) {
 - evidence는 반드시 "사진에서 실제로 본 것(obs)"과 "그래서 내린 판단(judge)"의 짝으로 씁니다. 보이지 않는 것을 추측해 단정하지 않습니다.
 - 정답지가 있으면 그것을 기준으로 채점하고, 없으면 직접 풀어 확인합니다. 확신이 없으면 verdict를 unknown으로 둡니다.
 - 글씨가 겹치거나 의도가 불분명한 부분은 uncertain에 구체적으로 적습니다.
-- 학습지 전체 요약(summary)과 반복되는 약점 패턴 태그(patterns, 2~8자 짧은 말 1~3개)도 냅니다.`;
+- 학습지 전체 요약(summary)과 반복되는 약점 패턴 태그(patterns, 2~8자 짧은 말 1~3개)도 냅니다.
+- problem_text에는 인쇄된 문제 본문을 그대로 옮겨 적습니다(보기 포함).
+수식 표기 규칙: 모든 수식·기호는 LaTeX로 쓰고 $로 감쌉니다. 문장 안 수식은 $\\dfrac{f(3)-f(2)}{3-2}$, 한 줄 전체를 차지하는 식은 $$...$$. 문장 안의 분수는 읽기 쉽게 \\dfrac을 씁니다. 일반 텍스트로 (f(3)-f(2))/(3-2)처럼 쓰지 않습니다. 한국어 문장은 $ 밖에 씁니다.`;
 
   const out = await claude({
     model: MODEL_VISION,
@@ -431,6 +435,7 @@ async function analyzeWorksheet(ctx: Ctx, uploadId: string) {
     upload_id: uploadId,
     student_id: up.student_id,
     num: p.num,
+    problem_text: p.problem_text || null,
     page_index: p.page_index ?? 0,
     bbox: p.bbox ?? null,
     ai_verdict: p.verdict,
@@ -475,7 +480,8 @@ async function analyzeExam(ctx: Ctx, paperId: string) {
 - 난이도 기준: 1 교과서 기본, 2 교과서 응용, 3 중간 난이도 문제집 수준, 4 상위권 변별, 5 최고난도(킬러).
 - source_kind는 교과서 | 교과서 변형 | 부교재 | 외부 | 신유형 중 하나로 추정합니다(학교 시험이 아니면 기출 변형/신유형 등으로).
 - ${keepText ? "original_text에는 문항 본문을 텍스트로 옮겨 적습니다(수식은 읽을 수 있게 평문으로)." : "original_text는 빈 문자열로 둡니다."}
-- 시험 전체의 특징을 summary에 3~5문장으로 씁니다.`;
+- 시험 전체의 특징을 summary에 3~5문장으로 씁니다.
+수식 표기 규칙: 모든 수식·기호는 LaTeX로 쓰고 $로 감쌉니다. 문장 안 수식은 $\\dfrac{f(3)-f(2)}{3-2}$, 한 줄 전체를 차지하는 식은 $$...$$. 문장 안의 분수는 읽기 쉽게 \\dfrac을 씁니다. 일반 텍스트로 (f(3)-f(2))/(3-2)처럼 쓰지 않습니다. 한국어 문장은 $ 밖에 씁니다.`;
 
   const out = await claude({
     model: MODEL_VISION,
@@ -884,6 +890,7 @@ ${ASSISTANT_SCHEMA_DOC}
 - 애매하면 제안하기 전에 짧게 질문합니다.
 - 변경이 필요하면 propose_changes를 한 번 호출하고, 마지막에 한국어로 무엇을 제안했는지 2~4문장으로 말합니다. 단순 질문에는 DB를 찾아보고 답만 합니다.
 - 학생 정보 변경은 students의 허용된 칸만, 메모는 추가만 할 수 있습니다.
+- 답변에 수식이 들어가면 $...$로 감싼 LaTeX로 씁니다(앱이 수식으로 그려줍니다).
 - 요청을 지금 구조로 제대로 담을 수 없으면(맞는 칸·표·화면이 없음) 억지로 notes 같은 곳에 우겨넣지 말고 report_limitation으로 개선 요청을 남긴 뒤, 선생님께 "개선 요청함에 남겨뒀다"고 알리고 지금 할 수 있는 임시 방법이 있으면 함께 말합니다.`;
 
   let proposal: any = null;
