@@ -158,7 +158,8 @@ async function loadImages(db: SupabaseClient, paths: string[]) {
   for (let i = 0; i < paths.length; i++) {
     const { data, error } = await db.storage.from(BUCKET).download(paths[i]);
     if (error || !data) throw new Error(`사진을 불러오지 못했어요: ${paths[i]}`);
-    const mt = paths[i].toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    const lower = paths[i].toLowerCase();
+    const mt = lower.endsWith(".png") ? "image/png" : lower.endsWith(".webp") ? "image/webp" : "image/jpeg";
     out.push(text(`[사진 ${i + 1} / page_index=${i}]`));
     out.push({ type: "image", source: { type: "base64", media_type: mt, data: b64(await data.arrayBuffer()) } });
   }

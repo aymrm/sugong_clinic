@@ -35,7 +35,11 @@ export default function Worksheets() {
   useLiveRefresh("worksheet_uploads", busy, list.reload);
 
   return (
-    <Page title="학습지 분석" sub="풀이 사진을 올리면 문제별로 정리해요" right={<Btn size="sm" onClick={() => setAdding(true)}>+ 사진</Btn>}>
+    <Page title="학습지 분석" sub="풀이 사진을 올리면 문제별로 정리해요">
+      <Btn onClick={() => setAdding(true)} style={{ width: "100%" }}>
+        + 학습지 사진 올리기
+      </Btn>
+      <div style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.5 }}>올릴 때 어느 학생이 푼 건지 고르면 돼요. 학생 화면의 학습지 탭에서 올리면 학생이 자동으로 정해져요.</div>
       <ErrorBox error={list.error} onRetry={() => list.reload()} />
       {list.loading && !list.data ? (
         <Loading />
@@ -95,13 +99,13 @@ export function UploadList({ uploads, onOpen, showStudent }) {
   );
 }
 
-export function UploadSheet({ studentId, onClose, onDone }) {
+export function UploadSheet({ studentId, defaultCourseId, defaultDate, onClose, onDone }) {
   const base = useBase();
   const toast = useToast();
   const students = base.isAdmin ? base.students.filter((s) => !s.withdrawn) : base.myStudents;
   const [sid, setSid] = useState(studentId || students[0]?.id || "");
   const courses = sid ? base.coursesOfStudent(sid) : [];
-  const [f, setF] = useState({ course_id: "", date: todayISO(), material: "", range_text: "", answer_key_id: "" });
+  const [f, setF] = useState({ course_id: defaultCourseId || "", date: defaultDate || todayISO(), material: "", range_text: "", answer_key_id: "" });
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState(null);
@@ -135,7 +139,7 @@ export function UploadSheet({ studentId, onClose, onDone }) {
     <Sheet open title="학습지 올리기" onClose={onClose} footer={<Btn onClick={submit} disabled={!!busy || !sid || !files.length} style={{ width: "100%" }}>{busy || `사진 ${files.length}장 분석하기`}</Btn>}>
       <ErrorBox error={err} />
       {!studentId && (
-        <Field label="학생">
+        <Field label="누가 푼 학습지인가요?">
           <Select value={sid} onChange={(e) => setSid(e.target.value)} options={students.map((s) => ({ value: s.id, label: `${s.name}${s.school ? ` (${s.school})` : ""}` }))} />
         </Field>
       )}
